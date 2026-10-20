@@ -91,7 +91,7 @@ def jsonable(value: object) -> object:
     if isinstance(value, pd.Timestamp):
         return cast(pd.Timestamp, value).isoformat()
     if isinstance(value, np.datetime64):
-        return pd.Timestamp(value).isoformat()
+        return cast(pd.Timestamp, pd.Timestamp(value)).isoformat()
     if isinstance(value, (list, tuple, set, frozenset)):
         return [jsonable(item) for item in value]
     if isinstance(value, dict):
