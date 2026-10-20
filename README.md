@@ -115,6 +115,10 @@ uv run pytest --cov=kt_audit --cov-report=term-missing
 bash scripts/wheel-smoke.sh
 ```
 
+## Release
+
+See [docs/release.md](docs/release.md). TestPyPI and PyPI publish through GitHub Actions trusted publishing.
+
 ## Roadmap
 
 - v0.2: pyKT adapter, bootstrap AUC intervals, HTML report.
