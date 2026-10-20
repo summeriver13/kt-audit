@@ -89,7 +89,7 @@ def parse_kc_ids(value: object, separator: str) -> tuple[str, ...]:
 
 def jsonable(value: object) -> object:
     if isinstance(value, pd.Timestamp):
-        return value.isoformat()
+        return cast(pd.Timestamp, value).isoformat()
     if isinstance(value, np.datetime64):
         return pd.Timestamp(value).isoformat()
     if isinstance(value, (list, tuple, set, frozenset)):
