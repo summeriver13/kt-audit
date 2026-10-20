@@ -1,10 +1,14 @@
 # kt-audit
 
+[![PyPI](https://img.shields.io/pypi/v/kt-audit)](https://pypi.org/project/kt-audit/)
+[![CI](https://github.com/summeriver13/kt-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/summeriver13/kt-audit/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/pypi/pyversions/kt-audit)](https://pypi.org/project/kt-audit/)
+
 **Before you trust an AUC, audit the evaluation.**
 
 `kt-audit` is a small, opinionated audit tool for knowledge-tracing (KT) experiments. It does not train models. It checks whether the evaluation setup behind a reported AUC is trustworthy.
 
-Status: **alpha (0.1.0)**. The scope is intentionally narrow; see [docs/charter.md](docs/charter.md) for the scope and non-goals.
+Status: **alpha (0.1.x)**. The scope is intentionally narrow; see [docs/charter.md](https://github.com/summeriver13/kt-audit/blob/main/docs/charter.md) for the scope and non-goals.
 
 ## Why
 
@@ -21,7 +25,17 @@ These are not hypothetical. In pyKT, a widely used KT benchmark library, the aut
 
 ## Install
 
-Not on PyPI yet. From source:
+```bash
+pip install kt-audit
+```
+
+Or with uv:
+
+```bash
+uv add kt-audit
+```
+
+From source:
 
 ```bash
 git clone https://github.com/summeriver13/kt-audit
@@ -30,18 +44,21 @@ uv sync
 uv run kt-audit --help
 ```
 
-Or with pip:
-
-```bash
-pip install -e .
-```
-
-Requires Python 3.10+.
+Requires Python 3.10+. Pin a specific version for reproducible paper artifacts.
 
 ## Quickstart
 
+Download the synthetic example and run the audit:
+
 ```bash
-uv run kt-audit run examples/leaky.csv --out /tmp/kt-audit-report
+curl -fsSLO https://raw.githubusercontent.com/summeriver13/kt-audit/main/examples/leaky.csv
+kt-audit run leaky.csv --out report
+```
+
+Or, from a source checkout:
+
+```bash
+uv run kt-audit run examples/leaky.csv --out report
 ```
 
 Output:
@@ -49,7 +66,7 @@ Output:
 ```text
 verdict: fail
 findings: 6 error, 2 warn
-report: /tmp/kt-audit-report/report.md
+report: report/report.md
 ```
 
 The command writes:
@@ -85,7 +102,7 @@ One row per interaction or prediction. CSV or JSONL.
 | `fold` | no | checks run per fold |
 | `sequence_id`, `position` | no | reserved for sequence checks |
 
-See [docs/data-contract.md](docs/data-contract.md) for the full contract.
+See [docs/data-contract.md](https://github.com/summeriver13/kt-audit/blob/main/docs/data-contract.md) for the full contract.
 
 ## Python API
 
@@ -119,7 +136,7 @@ bash scripts/wheel-smoke.sh
 
 ## Release
 
-See [docs/release.md](docs/release.md). TestPyPI and PyPI publish through GitHub Actions trusted publishing.
+See [docs/release.md](https://github.com/summeriver13/kt-audit/blob/main/docs/release.md) and [CHANGELOG.md](https://github.com/summeriver13/kt-audit/blob/main/CHANGELOG.md). TestPyPI and PyPI publish through GitHub Actions trusted publishing.
 
 ## Roadmap
 
@@ -132,8 +149,8 @@ AI tools are used in development. The maintainer reviews every check definition,
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The v0.1 scope is frozen to the three checks above.
+See [CONTRIBUTING.md](https://github.com/summeriver13/kt-audit/blob/main/CONTRIBUTING.md). The v0.1 scope is frozen to the three checks above.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/summeriver13/kt-audit/blob/main/LICENSE).
