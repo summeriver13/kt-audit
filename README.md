@@ -17,6 +17,8 @@ KT papers and libraries report AUC, but the evaluation protocol is often under-s
 
 `kt-audit` turns those questions into a machine-readable report you can attach to a paper artifact, a PR, or a model release.
 
+These are not hypothetical. In pyKT, a widely used KT benchmark library, the authors themselves warn that "the training and test data has overlap and the experimental results cannot be compared" ([pykt-team/pykt-toolkit#91](https://github.com/pykt-team/pykt-toolkit/issues/91)), and `data_process.py` points `valid` and `test` at the same file.
+
 ## Install
 
 Not on PyPI yet. From source:
@@ -121,7 +123,7 @@ See [docs/release.md](docs/release.md). TestPyPI and PyPI publish through GitHub
 
 ## Roadmap
 
-- v0.2: pyKT adapter, bootstrap AUC intervals, HTML report.
+- v0.2: pyKT adapter (covers the models wired in `init_model.py`, including the cold-start `cskt`), bootstrap AUC intervals, HTML report.
 - v0.3: duplicate interactions, cold-start, sequence truncation, label leakage.
 
 ## AI disclosure
