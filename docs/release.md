@@ -19,6 +19,10 @@ PyPI:
 - Same owner, repository, and workflow
 - Environment: `pypi`
 
+## Versioning
+
+`0.x` may include breaking changes in minor releases. Patch releases are fixes only. `1.0.0` is published only after the public API is frozen.
+
 ## TestPyPI
 
 Run the workflow manually:
