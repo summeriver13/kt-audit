@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.basedpyright/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+kt-audit-report/
+
+# local uv lock (regenerated per environment)
+uv.lock
