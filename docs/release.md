@@ -38,18 +38,19 @@ Verify from TestPyPI:
 uv run --isolated --no-project \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple \
-  --with kt-audit==0.1.0 kt-audit --version
+  --with kt-audit==0.1.1 kt-audit --version
 ```
 
 ## PyPI
 
-1. Bump `__version__` in `src/kt_audit/__init__.py`.
-2. Commit and push; wait for CI.
-3. Tag the same version and push the tag:
+1. Update `CHANGELOG.md`.
+2. Bump `__version__` in `src/kt_audit/__init__.py`.
+3. Commit and push; wait for CI.
+4. Tag the same version and push the tag:
 
 ```bash
-git tag -a v0.1.0 -m v0.1.0
-git push origin v0.1.0
+git tag -a v0.1.1 -m v0.1.1
+git push origin v0.1.1
 ```
 
 The tag triggers `publish.yml`. The build job fails if the tag does not match `__version__`.
