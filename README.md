@@ -21,6 +21,11 @@ KT papers and libraries report AUC, but the evaluation protocol is often under-s
 
 `kt-audit` turns those questions into a machine-readable report you can attach to a paper artifact, a PR, or a model release.
 
+Two 2026 measurements motivated the v0.2 checks. In a tutoring benchmark, a depth-4 tree over seven
+scalar features reproduced the gold diagnosis labels at 82.3 accuracy while the best LLM reached
+42.0: the metric was measuring rule-following. In the same benchmark, a 3,000-token output budget
+silently truncated 14.5% of samples and cost 7 points of score.
+
 These are not hypothetical. In pyKT, a widely used KT benchmark library, the authors themselves warn that "the training and test data has overlap and the experimental results cannot be compared" ([pykt-team/pykt-toolkit#91](https://github.com/pykt-team/pykt-toolkit/issues/91)), and `data_process.py` points `valid` and `test` at the same file.
 
 ## Install
@@ -65,7 +70,7 @@ Output:
 
 ```text
 verdict: fail
-findings: 6 error, 2 warn
+findings: 5 error, 0 warn
 report: report/report.md
 ```
 
@@ -80,11 +85,69 @@ Exit codes: `0` pass/warn, `1` fail, `2` input/config error.
 
 | Check | Catches | Default |
 | --- | --- | --- |
-| `temporal_split` | train timestamps after validation/test; users across splits | error / warn |
+| `temporal_split` | a user's train events after that user's evaluation events | error |
 | `multi_kc` | same item with train-only and test-only KCs | error |
 | `alignment` | missing/duplicate/out-of-range predictions; constant predictions; reported AUC mismatch | error / warn |
+| `cheap_baseline` | reported predictions that a tree over past-event aggregates matches or beats | error / warn |
+| `degenerate` | predictions too few, too narrow, on too small a sample, or with a rare minority class | warn / info |
 
 Each finding has a `severity`, a `count`, and up to three examples.
+
+### `cheap_baseline`
+
+KT claims that long history adds information. This check tests that claim directly: it builds
+eight features from **past events only** — prior count, prior accuracy, gap since the last event,
+same-item history, item popularity, KC history, and sequence position — trains a depth-4 decision
+tree on the training split, and compares its AUC with the reported predictions on the same rows.
+
+- baseline AUC ≥ model AUC: `error`. The model adds nothing over cheap aggregates.
+- model AUC − baseline AUC < `baseline_warn_margin` (0.02): `warn`.
+- fewer than 50 labelled training rows, 30 evaluation rows, or one class: skipped.
+- The comparison runs on the test split, or on valid when test is absent.
+
+The numbers land in `report.json` under `baselines` and in a `## Baseline` table.
+
+### `degenerate`
+
+| Rule | Threshold | Why |
+| --- | --- | --- |
+| few distinct values | fewer than 10, at least 30 rows | predictions collapse to a few levels |
+| narrow band | IQR below 0.02, at least 30 rows | no discrimination; AUC sits near 0.5 |
+| small sample | fewer than 30 rows | interval too wide to compare (info, not a defect) |
+| rare minority | minority share below 1% | AUC unstable |
+
+Thresholds are module constants, not config keys. Change them with a release.
+
+## Compare two runs
+
+Two models that differ by 3 points on 200 rows may be indistinguishable. `compare` pairs the two
+prediction files on their interaction keys and bootstraps the AUC delta on the same resampled rows:
+
+```bash
+kt-audit compare baseline.csv candidate.csv --out comparison
+```
+
+```text
+verdict: b_better
+delta: +0.4736 (95% CI [+0.3637, +0.5907])
+report: comparison/comparison.md
+```
+
+- CI contains 0: `tie`. The sample cannot tell the two runs apart.
+- Output: `comparison.json` and `comparison.md`.
+- Defaults: 2000 rounds, seed 0, so the interval is reproducible.
+- Inputs must share keys and agree on `y_true`; otherwise the command exits with code 2.
+
+## Case study
+
+`docs/case-study-assist09.md` runs the tool on ASSISTments 2009 with a per-user chronological split.
+The v0.1 checks stay silent, which is correct; the cheap baseline reaches 0.7138, so a reported
+0.771 passes and a reported 0.70 fails. Three severities changed as a result.
+
+## Provenance
+
+`report.json` records `tool_version` and `input.sha256`, so an artifact stays readable after the
+input file is regenerated. The Markdown report prints both in its header.
 
 ## Input
 
@@ -140,8 +203,8 @@ See [docs/release.md](https://github.com/summeriver13/kt-audit/blob/main/docs/re
 
 ## Roadmap
 
-- v0.2: pyKT adapter (covers the models wired in `init_model.py`, including the cold-start `cskt`), bootstrap AUC intervals, HTML report.
-- v0.3: duplicate interactions, cold-start, sequence truncation, label leakage.
+- v0.2 (shipped): `cheap_baseline`, `degenerate`, `compare`, provenance fields. See `docs/rfc-0.2.md`.
+- v0.3: pyKT adapter (covers the models wired in `init_model.py`, including the cold-start `cskt`), HTML report, offline `judge-audit` for saved LLM judgments, duplicate interactions, sequence truncation.
 
 ## AI disclosure
 

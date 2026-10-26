@@ -114,18 +114,23 @@ pyKT 是事实上的 KT benchmark，但无 CI、几乎无测试、外部 PR 通�
 
 **不以下载量、stars、外部 PR 数作为早期成功标准。**
 
-## 后续（v0.2+）
+## v0.2 范围（2026-10-26，已定案）
 
-- pyKT 输出 adapter。
-- bootstrap AUC 置信区间。
-- HTML 报告。
-- 更多检查：重复交互、冷启动、序列截断、标签泄漏。
-- 真实数据集 case study（注意授权）。
+v0.1 管「协议合法吗」。2026-10 的两次实测说明协议合法的数字仍可能无意义，v0.2 因此加第二类检查：**分数可信度**。详见 `docs/rfc-0.2.md`。
+
+| 件 | 判据 |
+| --- | --- |
+| `cheap_baseline` | 只用过去事件的聚合特征训练深度 4 的树；基线 AUC ≥ 模型 AUC 记 error，差 < 0.02 记 warn |
+| `degenerate` | 不同取值过少、分布过窄、样本过小（info）、少数类过稀 |
+| provenance | `report.json` 记录 `tool_version` 与输入 `sha256` |
+| `compare` | 同批行配对 bootstrap，ΔAUC 的 95% 区间跨 0 记 tie |
+
+v0.3 候选：pyKT adapter、HTML 报告、离线 `judge-audit`、重复交互、序列截断。
 
 ## 风险
 
 - 启发式会有假阳性；必须提供 examples 和 limitations。
-- 容易膨胀成“又一个 KT 框架”；v0.1 冻结在三个检查。
+- 容易膨胀成“又一个 KT 框架”；v0.1 冻结在三个检查，v0.2 只加两类可信度检查（见 `docs/rfc-0.2.md`）。
 - 数据集不能随便打包；示例用合成数据。
 - 维护时间有限；每周 2-4 小时，不承诺 SLA。
 
