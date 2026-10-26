@@ -8,7 +8,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 
 from ..config import AuditConfig
 from ..schema import SPLITS, Finding
-from ._common import examples_with_fold, fold_example, iter_folds
+from ._common import examples_with_fold, fold_example, iter_folds, key_columns
 
 
 def check_alignment(
@@ -78,7 +78,7 @@ def _invalid_findings(df: pd.DataFrame, config: AuditConfig) -> list[Finding]:
 
 
 def _duplicate_findings(df: pd.DataFrame, config: AuditConfig) -> list[Finding]:
-    keys = _key_columns(df)
+    keys = key_columns(df)
     extra = df.duplicated(subset=keys, keep="first")
     if not bool(extra.any()):
         return []
@@ -112,14 +112,6 @@ def _constant_findings(df: pd.DataFrame) -> list[Finding]:
                 )
             )
     return findings
-
-
-def _key_columns(df: pd.DataFrame) -> list[str]:
-    if bool(df["item_id"].notna().any()):
-        return ["_fold", "user_id", "item_id", "timestamp"]
-    if {"sequence_id", "position"}.issubset(df.columns):
-        return ["_fold", "user_id", "sequence_id", "position"]
-    return ["_fold", "user_id", "timestamp"]
 
 
 def _metrics(df: pd.DataFrame) -> dict[str, dict[str, object]]:
