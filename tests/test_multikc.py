@@ -35,12 +35,12 @@ def test_multikc_detects_cross_split_kcs(make_frame) -> None:
     assert any(finding.count == 1 for finding in findings)
 
 
-def test_multikc_warns_item_overlap_without_cross(make_frame) -> None:
+def test_multikc_reports_item_overlap_without_cross(make_frame) -> None:
     rows = _rows()
     rows[1]["kc_ids"] = "kc_a"
     findings = _check(make_frame, rows)
     assert not any(finding.severity == "error" for finding in findings)
-    assert any(finding.severity == "warn" for finding in findings)
+    assert any(finding.severity == "info" for finding in findings)
 
 
 def test_multikc_skips_without_item_id(make_frame) -> None:

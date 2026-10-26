@@ -38,12 +38,12 @@ def test_temporal_detects_per_user_violation(make_frame) -> None:
     assert any("user" in finding.message for finding in findings)
 
 
-def test_temporal_warns_when_user_overlap_is_ordered(make_frame) -> None:
+def test_temporal_reports_user_overlap_when_ordered(make_frame) -> None:
     rows = _rows()
     rows[1]["user_id"] = "u1"
     findings = _check(make_frame, rows)
     assert not any(finding.severity == "error" for finding in findings)
-    assert any(finding.severity == "warn" for finding in findings)
+    assert any(finding.severity == "info" for finding in findings)
 
 
 def test_temporal_skips_without_evaluation_split(make_frame) -> None:

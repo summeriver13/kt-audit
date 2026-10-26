@@ -114,8 +114,8 @@ def _leak_findings(
         findings.append(
             Finding(
                 "multi_kc",
-                "warn",
-                "the same item appears in train and test",
+                "info",
+                "the same item appears in train and test; expected unless items are cold-start",
                 len(overlap_items),
                 examples,
             )

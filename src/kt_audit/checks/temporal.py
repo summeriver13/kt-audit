@@ -40,8 +40,8 @@ def _global_findings(
     return [
         Finding(
             "temporal_split",
-            "error",
-            "training events are not strictly before evaluation events",
+            "info",
+            "global timestamps overlap across splits; expected for a per-user temporal split",
             1,
             (example,),
         )
@@ -69,8 +69,8 @@ def _overlap_findings(
     return [
         Finding(
             "temporal_split",
-            "warn",
-            "users appear in more than one split",
+            "info",
+            "users appear in more than one split; expected for a per-user temporal split",
             len(multi),
             examples,
         )
