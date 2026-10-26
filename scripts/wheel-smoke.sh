@@ -19,6 +19,7 @@ fi
 uv pip install --python "$python" "$wheel" >/dev/null
 
 "$python" -c 'import kt_audit; print(f"version: {kt_audit.__version__}")'
+"$python" -c 'import kt_audit.compare, kt_audit.checks.baseline'
 "$python" -m kt_audit --version
 
 set +e
@@ -36,7 +37,7 @@ import sys
 
 with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
-assert payload["schema_version"] == "0.1"
+assert payload["schema_version"] == "0.2"
 assert payload["verdict"] == "fail"
 print("report: ok")
 PY

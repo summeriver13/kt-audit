@@ -46,7 +46,7 @@ Repository = "https://github.com/summeriver13/kt-audit"
 Issues = "https://github.com/summeriver13/kt-audit/issues"
 
 [tool.hatch.version]
-path = "src/kt_audit/__init__.py"
+path = "src/kt_audit/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kt_audit"]
