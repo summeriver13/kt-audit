@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal, cast
 
 import numpy as np
@@ -40,6 +40,8 @@ class Report:
     findings: tuple[Finding, ...]
     metrics: dict[str, dict[str, object]]
     verdict: Verdict
+    tool_version: str = ""
+    baselines: dict[str, dict[str, object]] = field(default_factory=dict)
 
 
 def _is_missing(value: object) -> bool:

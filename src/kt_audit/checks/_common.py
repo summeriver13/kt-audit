@@ -8,6 +8,14 @@ import pandas as pd
 from ..schema import jsonable
 
 
+def key_columns(df: pd.DataFrame) -> list[str]:
+    if bool(df["item_id"].notna().any()):
+        return ["_fold", "user_id", "item_id", "timestamp"]
+    if {"sequence_id", "position"}.issubset(df.columns):
+        return ["_fold", "user_id", "sequence_id", "position"]
+    return ["_fold", "user_id", "timestamp"]
+
+
 def iter_folds(df: pd.DataFrame) -> Iterator[tuple[str, pd.DataFrame]]:
     for fold, group in df.groupby("_fold", sort=True, dropna=False):
         yield str(fold), group

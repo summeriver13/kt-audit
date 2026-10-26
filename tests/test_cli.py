@@ -41,6 +41,26 @@ def test_cli_clean_returns_0(tmp_path: Path, clean_rows) -> None:
     assert payload["verdict"] == "pass"
 
 
+def test_cli_accepts_new_skip_flags(tmp_path: Path) -> None:
+    path = Path(__file__).parents[1] / "examples" / "floor.csv"
+    out = tmp_path / "report"
+    args = ["run", str(path), "--out", str(out), "--no-baseline", "--no-degenerate"]
+    assert main(args) == 0
+    payload = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    assert payload["baselines"] == {}
+    assert not any(finding["check"] == "degenerate" for finding in payload["findings"])
+
+
+def test_cli_writes_provenance(tmp_path: Path, clean_rows) -> None:
+    csv = tmp_path / "clean.csv"
+    pd.DataFrame(clean_rows).to_csv(csv, index=False)
+    out = tmp_path / "report"
+    assert main(["run", str(csv), "--out", str(out)]) == 0
+    payload = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    assert payload["tool_version"]
+    assert len(payload["input"]["sha256"]) == 64
+
+
 def test_cli_missing_input_returns_2(tmp_path: Path) -> None:
     assert main(["run", str(tmp_path / "missing.csv"), "--out", str(tmp_path)]) == 2
 

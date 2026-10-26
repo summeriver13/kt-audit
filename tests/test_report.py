@@ -35,11 +35,14 @@ def test_write_json(tmp_path: Path, make_frame, clean_rows) -> None:
     write_json(report, path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["verdict"] == "pass"
-    assert payload["schema_version"] == "0.1"
+    assert payload["schema_version"] == "0.2"
 
 
 def test_report_markdown_without_metrics(make_frame, clean_rows) -> None:
-    report = audit_frame(make_frame(clean_rows), AuditConfig(alignment=False))
+    report = audit_frame(
+        make_frame(clean_rows),
+        AuditConfig(alignment=False, cheap_baseline=False, degenerate=False),
+    )
     markdown = report_to_markdown(report)
     assert "## Metrics" not in markdown
     assert "No findings" in markdown

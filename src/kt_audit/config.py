@@ -17,6 +17,9 @@ class AuditConfig:
     max_examples: int = 3
     reported_auc: float | None = None
     auc_tolerance: float = 0.01
+    cheap_baseline: bool = True
+    degenerate: bool = True
+    baseline_warn_margin: float = 0.02
 
     def __post_init__(self) -> None:
         if not self.kc_separator:
@@ -27,6 +30,8 @@ class AuditConfig:
             raise ValueError("auc_tolerance must be >= 0")
         if self.reported_auc is not None and not 0 <= self.reported_auc <= 1:
             raise ValueError("reported_auc must be in [0, 1]")
+        if self.baseline_warn_margin < 0:
+            raise ValueError("baseline_warn_margin must be >= 0")
 
 
 def load_config(path: str | Path | None) -> AuditConfig:

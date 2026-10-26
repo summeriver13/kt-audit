@@ -12,7 +12,7 @@ from kt_audit.schema import prepare_frame
 def test_audit_frame_clean_rows_pass(make_frame, clean_rows) -> None:
     report = audit_frame(make_frame(clean_rows))
     assert report.verdict == "pass"
-    assert report.findings == ()
+    assert {finding.severity for finding in report.findings} <= {"info"}
     assert report.input["rows"] == 4
 
 
@@ -48,7 +48,13 @@ def test_audit_config_can_disable_all_checks(make_frame, clean_rows) -> None:
     rows[0]["timestamp"] = "2024-01-02T10:00:00"
     report = audit_frame(
         make_frame(rows),
-        AuditConfig(temporal=False, multikc=False, alignment=False),
+        AuditConfig(
+            temporal=False,
+            multikc=False,
+            alignment=False,
+            cheap_baseline=False,
+            degenerate=False,
+        ),
     )
     assert report.verdict == "pass"
     assert report.findings == ()

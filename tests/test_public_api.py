@@ -39,6 +39,9 @@ def test_audit_config_fields() -> None:
         "max_examples",
         "reported_auc",
         "auc_tolerance",
+        "cheap_baseline",
+        "degenerate",
+        "baseline_warn_margin",
     ]
 
 
@@ -60,12 +63,14 @@ def test_report_fields() -> None:
         "findings",
         "metrics",
         "verdict",
+        "tool_version",
+        "baselines",
     ]
 
 
 def test_audit_frame_signature() -> None:
     parameters = inspect.signature(audit_frame).parameters
-    assert list(parameters) == ["df", "config"]
+    assert list(parameters) == ["df", "config", "digest"]
     assert parameters["config"].default is None
 
 
@@ -95,5 +100,7 @@ def test_report_json_keys(clean_rows) -> None:
         "verdict",
         "input",
         "metrics",
+        "baselines",
+        "tool_version",
         "findings",
     }

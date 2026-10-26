@@ -21,8 +21,10 @@ def report_to_dict(report: Report) -> dict[str, object]:
         "schema_version": report.schema_version,
         "generated_at": report.generated_at,
         "verdict": report.verdict,
+        "tool_version": report.tool_version,
         "input": jsonable(report.input),
         "metrics": jsonable(report.metrics),
+        "baselines": jsonable(report.baselines),
         "findings": [finding_to_dict(finding) for finding in report.findings],
     }
 
@@ -40,6 +42,7 @@ def report_to_markdown(report: Report) -> str:
     for finding in report.findings:
         lines.extend(_finding_lines(finding))
     lines.extend(_metrics_lines(report.metrics))
+    lines.extend(_baseline_lines(report.baselines))
     lines.extend(_limitation_lines())
     return "\n".join(lines) + "\n"
 
@@ -51,7 +54,9 @@ def _header_lines(report: Report) -> list[str]:
         f"**Verdict: {report.verdict.upper()}**",
         "",
         f"- generated: {report.generated_at}",
+        f"- tool: kt-audit {report.tool_version}",
         f"- schema: {report.schema_version}",
+        f"- sha256: {report.input.get('sha256') or 'n/a'}",
         f"- rows: {report.input.get('rows')}",
         f"- users: {report.input.get('users')}",
         f"- items: {report.input.get('items')}",
@@ -95,6 +100,27 @@ def _metrics_lines(metrics: dict[str, dict[str, object]]) -> list[str]:
     return lines
 
 
+def _baseline_lines(baselines: dict[str, dict[str, object]]) -> list[str]:
+    if not baselines:
+        return []
+    lines = [
+        "",
+        "## Baseline",
+        "",
+        "| Fold | Cheap baseline AUC | Model AUC | Delta | n train | n eval |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for fold in sorted(baselines):
+        row = baselines[fold]
+        lines.append(
+            f"| {fold} | {_format_metric(row.get('baseline_auc'))} "
+            f"| {_format_metric(row.get('model_auc'))} "
+            f"| {_format_delta(row.get('delta'))} "
+            f"| {row.get('n_train')} | {row.get('n_evaluation')} |"
+        )
+    return lines
+
+
 def _limitation_lines() -> list[str]:
     return [
         "",
@@ -103,8 +129,16 @@ def _limitation_lines() -> list[str]:
         "- Findings are heuristics, not causal proof.",
         "- The multi-KC check needs `item_id`; it is skipped when missing.",
         "- The temporal check assumes timestamps are comparable within a user.",
+        "- The cheap baseline uses past-event aggregates only; on sparse data a tree can win by chance.",
+        "- Thresholds in the degenerate check are fixed constants, not tuned per dataset.",
         "- A passing report does not prove that a model is valid.",
     ]
+
+
+def _format_delta(value: object) -> str:
+    if isinstance(value, float):
+        return f"{value:+.4f}"
+    return "n/a"
 
 
 def _format_metric(value: object) -> str:
