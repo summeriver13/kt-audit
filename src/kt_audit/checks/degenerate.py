@@ -16,22 +16,12 @@ _EVALUATION_SPLITS = ("valid", "test")
 
 
 def check_degenerate(df: pd.DataFrame, config: AuditConfig) -> list[Finding]:
-    if "y_pred" not in df.columns:
+    if "y_pred" not in df.columns or not pd.api.types.is_numeric_dtype(df["y_pred"]):
         return [
             Finding(
                 "degenerate",
                 "info",
-                "y_pred is missing; distribution checks skipped",
-                0,
-                (),
-            )
-        ]
-    if not pd.api.types.is_numeric_dtype(df["y_pred"]):
-        return [
-            Finding(
-                "degenerate",
-                "info",
-                "y_pred is not numeric; distribution checks skipped",
+                "no numeric predictions; distribution checks skipped",
                 0,
                 (),
             )

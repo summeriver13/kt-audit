@@ -63,7 +63,7 @@ def test_skips_without_predictions(make_frame) -> None:
         row.pop("y_pred")
     findings = _check(make_frame, rows)
     assert findings[0].severity == "info"
-    assert "y_pred is missing" in findings[0].message
+    assert "no numeric predictions" in findings[0].message
 
 
 def test_clean_predictions_have_no_findings(make_frame) -> None:
