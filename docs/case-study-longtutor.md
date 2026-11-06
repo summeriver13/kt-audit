@@ -14,6 +14,11 @@ What 0.3 says about a published diagnosis benchmark, and what it still cannot sa
 - The converted files are not shipped: the dataset license does not allow redistribution.
 
 ```bash
+uv run python scripts/make_case_study_longtutor.py \
+  --gold gold_split.jsonl \
+  --predictions gpt-6-astra.jsonl \
+  --out longtutor_astra.csv
+
 kt-audit run longtutor_astra.csv --out report_astra
 kt-audit run longtutor_deepseek_flash.csv --out report_flash
 kt-audit compare longtutor_astra.csv longtutor_deepseek_flash.csv --metric acc --out compare
