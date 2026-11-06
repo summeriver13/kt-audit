@@ -21,8 +21,13 @@ All notable changes to this project are documented here. This project follows [S
 - Examples `multiclass.csv` and `dropped_rows.csv`; `docs/rfc-0.3.md`;
   `docs/case-study-longtutor.md`.
 
-### Changed
+### Fixed
 
+- `cheap_baseline` skipped a fold whose training split holds a single class or whose labels
+  fall outside 0/1; both crashed with `IndexError` and left no report.
+- A label outside 0/1 leaves AUC empty instead of raising from `roc_auc_score`.
+
+### Changed
 - `schema_version` is `0.3`; fields were added inside `metrics[split]`.
 - `comparison.json` names the `metric` and prints `value_a` / `value_b` instead of `auc_a` /
   `auc_b`.
