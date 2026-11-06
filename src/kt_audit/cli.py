@@ -8,7 +8,7 @@ from typing import cast
 
 from . import __version__
 from .audit import audit_path
-from .compare import ROUNDS, SEED, compare_paths, write_comparison
+from .compare import METRICS, ROUNDS, SEED, compare_paths, write_comparison
 from .config import load_config
 from .errors import AuditError
 from .report import report_to_markdown, write_json
@@ -75,6 +75,12 @@ def _add_compare(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]
     compare.add_argument("--config", type=Path, default=None, help="JSON config")
     compare.add_argument("--rounds", type=int, default=ROUNDS, help=f"default: {ROUNDS}")
     compare.add_argument("--seed", type=int, default=SEED, help=f"default: {SEED}")
+    compare.add_argument(
+        "--metric",
+        choices=METRICS,
+        default="auc",
+        help="metric to compare (default: auc)",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -122,7 +128,14 @@ def _run(args: argparse.Namespace) -> int:
 def _compare(args: argparse.Namespace) -> int:
     try:
         config = load_config(args.config)
-        comparison = compare_paths(args.a, args.b, config, rounds=args.rounds, seed=args.seed)
+        comparison = compare_paths(
+            args.a,
+            args.b,
+            config,
+            rounds=args.rounds,
+            seed=args.seed,
+            metric=args.metric,
+        )
     except (AuditError, FileNotFoundError, ValueError) as exc:
         print(f"kt-audit: {exc}", file=sys.stderr)
         return 2

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -9,6 +10,7 @@ from kt_audit import AuditError
 from kt_audit.cli import main
 from kt_audit.compare import (
     compare_frames,
+    comparison_to_dict,
     comparison_to_markdown,
 )
 
@@ -34,6 +36,24 @@ def _rows(prediction, label_offset: int = 0) -> list[dict[str, object]]:
 
 def _weak(index: int) -> float:
     return 0.45 + (index % 7) * 0.01
+
+
+def _label(prediction: str) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for index in range(ROWS):
+        label = "A" if index < 80 else "B"
+        rows.append(
+            {
+                "user_id": f"u{index % 20}",
+                "item_id": f"q{index % 10}",
+                "kc_ids": "kc_a",
+                "timestamp": f"2024-01-{1 + index // 20:02d}T{index % 20:02d}:00:00",
+                "split": "test",
+                "y_true": label,
+                "y_pred_label": label if prediction == "truth" else prediction,
+            }
+        )
+    return rows
 
 
 def _strong(index: int) -> float:
@@ -124,6 +144,71 @@ def test_cli_compare_writes_files(tmp_path: Path) -> None:
     assert main(["compare", str(a), str(b), "--rounds", "100", "--out", str(out)]) == 0
     assert (out / "comparison.json").exists()
     assert (out / "comparison.md").exists()
+
+
+def test_compare_accuracy_on_label_files(make_frame) -> None:
+    a = make_frame(_label("A"))
+    b = make_frame(_label("truth"))
+    comparison = compare_frames(a, b, rounds=200, metric="acc")
+    assert comparison.metric == "acc"
+    assert comparison.value_a == pytest.approx(80 / 120)
+    assert comparison.value_b == pytest.approx(1.0)
+    assert comparison.verdict == "b_better"
+
+
+def test_compare_kappa_on_label_files(make_frame) -> None:
+    comparison = compare_frames(
+        make_frame(_label("A")),
+        make_frame(_label("truth")),
+        rounds=200,
+        metric="kappa",
+    )
+    assert comparison.value_a == pytest.approx(0.0)
+    assert comparison.value_b == pytest.approx(1.0)
+
+
+def test_compare_rejects_auc_on_label_files(make_frame) -> None:
+    with pytest.raises(AuditError, match="needs numeric labels"):
+        compare_frames(make_frame(_label("A")), make_frame(_label("truth")), rounds=50)
+
+
+def test_compare_rejects_unknown_metric(make_frame) -> None:
+    frame = make_frame(_rows(_weak))
+    with pytest.raises(AuditError, match="unknown metric"):
+        compare_frames(frame, frame, rounds=50, metric="f1")
+
+
+def test_compare_rejects_mixed_tasks(make_frame) -> None:
+    rows = _rows(_weak)
+    labelled = [dict(row) | {"y_pred_label": str(row["y_true"])} for row in rows]
+    with pytest.raises(AuditError, match="disagree on the task"):
+        compare_frames(make_frame(rows), make_frame(labelled), rounds=50)
+
+
+def test_comparison_dict_names_the_metric(make_frame) -> None:
+    comparison = compare_frames(
+        make_frame(_rows(_weak)),
+        make_frame(_rows(_strong)),
+        rounds=200,
+        metric="acc",
+    )
+    payload = comparison_to_dict(comparison)
+    assert payload["metric"] == "acc"
+    assert set(payload) >= {"value_a", "value_b", "delta", "verdict"}
+
+
+def test_cli_compare_metric_flag(tmp_path: Path) -> None:
+    a = tmp_path / "a.csv"
+    b = tmp_path / "b.csv"
+    pd.DataFrame(_label("A")).to_csv(a, index=False)
+    pd.DataFrame(_label("truth")).to_csv(b, index=False)
+    out = tmp_path / "cmp"
+    assert (
+        main(["compare", str(a), str(b), "--metric", "acc", "--rounds", "100", "--out", str(out)])
+        == 0
+    )
+    payload = json.loads((out / "comparison.json").read_text(encoding="utf-8"))
+    assert payload["metric"] == "acc"
 
 
 def test_cli_compare_missing_input(tmp_path: Path) -> None:

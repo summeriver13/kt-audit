@@ -3,27 +3,31 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
 
 from .audit import read_table
 from .checks._common import key_columns
 from .config import AuditConfig
 from .errors import AuditError
+from .metrics import score_rows
 from .schema import prepare_frame
+from .task import LABEL_COLUMN, PREDICTED_COLUMN, TASK_COLUMN, Task, label_text
 
 ROUNDS = 2000
 SEED = 0
 PERCENTILES = (2.5, 97.5)
+METRICS = ("auc", "acc", "macro_f1", "kappa")
 
 
 @dataclass(frozen=True)
 class Comparison:
     n: int
-    auc_a: float
-    auc_b: float
+    metric: str
+    value_a: float
+    value_b: float
     delta: float
     ci_low: float
     ci_high: float
@@ -39,23 +43,21 @@ def compare_frames(
     *,
     rounds: int = ROUNDS,
     seed: int = SEED,
+    metric: str = "auc",
 ) -> Comparison:
     if rounds < 1:
         raise AuditError("rounds must be >= 1")
+    if metric not in METRICS:
+        raise AuditError(f"unknown metric: {metric}; choose from {', '.join(METRICS)}")
     config = config or AuditConfig()
     left, right = _aligned(a, b, config)
-    y = left["y_true"].to_numpy(dtype=float)
-    pred_a = left["y_pred"].to_numpy(dtype=float)
-    pred_b = right["y_pred"].to_numpy(dtype=float)
-    mask = np.isfinite(y) & np.isfinite(pred_a) & np.isfinite(pred_b)
-    y, pred_a, pred_b = y[mask], pred_a[mask], pred_b[mask]
-    if y.size == 0:
-        raise AuditError("inputs have no rows with both predictions")
-    if np.unique(y).size < 2:
-        raise AuditError("y_true has a single class; AUC is undefined")
-    auc_a = float(roc_auc_score(y, pred_a))
-    auc_b = float(roc_auc_score(y, pred_b))
-    deltas = _bootstrap(y, pred_a, pred_b, rounds, seed)
+    task = _task(left, right)
+    if metric == "auc" and task != "ranking":
+        raise AuditError("auc needs numeric labels; use --metric acc for a label file")
+    truth, pred_a, pred_b = _filtered(left, right, task)
+    value_a = _value(truth, pred_a, task, metric)
+    value_b = _value(truth, pred_b, task, metric)
+    deltas = _bootstrap(truth, pred_a, pred_b, task, metric, rounds, seed)
     ci_low = float(np.percentile(deltas, PERCENTILES[0]))
     ci_high = float(np.percentile(deltas, PERCENTILES[1]))
     verdict = "tie"
@@ -64,10 +66,11 @@ def compare_frames(
     elif ci_high < 0:
         verdict = "a_better"
     return Comparison(
-        n=int(y.size),
-        auc_a=auc_a,
-        auc_b=auc_b,
-        delta=auc_b - auc_a,
+        n=int(truth.size),
+        metric=metric,
+        value_a=value_a,
+        value_b=value_b,
+        delta=value_b - value_a,
         ci_low=ci_low,
         ci_high=ci_high,
         rounds=rounds,
@@ -83,15 +86,24 @@ def compare_paths(
     *,
     rounds: int = ROUNDS,
     seed: int = SEED,
+    metric: str = "auc",
 ) -> Comparison:
-    return compare_frames(read_table(a), read_table(b), config, rounds=rounds, seed=seed)
+    return compare_frames(
+        read_table(a),
+        read_table(b),
+        config,
+        rounds=rounds,
+        seed=seed,
+        metric=metric,
+    )
 
 
 def comparison_to_dict(comparison: Comparison) -> dict[str, object]:
     return {
         "n": comparison.n,
-        "auc_a": comparison.auc_a,
-        "auc_b": comparison.auc_b,
+        "metric": comparison.metric,
+        "value_a": comparison.value_a,
+        "value_b": comparison.value_b,
         "delta": comparison.delta,
         "ci_low": comparison.ci_low,
         "ci_high": comparison.ci_high,
@@ -102,6 +114,7 @@ def comparison_to_dict(comparison: Comparison) -> dict[str, object]:
 
 
 def comparison_to_markdown(comparison: Comparison) -> str:
+    metric = comparison.metric
     lines = [
         "# kt-audit comparison",
         "",
@@ -109,9 +122,10 @@ def comparison_to_markdown(comparison: Comparison) -> str:
         "",
         "| Quantity | Value |",
         "| --- | ---: |",
+        f"| metric | {metric} |",
         f"| rows | {comparison.n} |",
-        f"| AUC a | {comparison.auc_a:.4f} |",
-        f"| AUC b | {comparison.auc_b:.4f} |",
+        f"| {metric} a | {comparison.value_a:.4f} |",
+        f"| {metric} b | {comparison.value_b:.4f} |",
         f"| delta (b - a) | {comparison.delta:+.4f} |",
         f"| 95% CI | [{comparison.ci_low:+.4f}, {comparison.ci_high:+.4f}] |",
         f"| bootstrap rounds | {comparison.rounds} |",
@@ -136,6 +150,14 @@ def write_comparison(comparison: Comparison, directory: Path) -> tuple[Path, Pat
     return json_path, markdown_path
 
 
+def _task(left: pd.DataFrame, right: pd.DataFrame) -> Task:
+    left_task = str(left[TASK_COLUMN].iloc[0])
+    right_task = str(right[TASK_COLUMN].iloc[0])
+    if left_task != right_task:
+        raise AuditError("inputs disagree on the task; one is ranking, the other classification")
+    return cast(Task, left_task)
+
+
 def _aligned(
     a: pd.DataFrame,
     b: pd.DataFrame,
@@ -144,8 +166,10 @@ def _aligned(
     left = prepare_frame(a, config)
     right = prepare_frame(b, config)
     for frame, name in ((left, "a"), (right, "b")):
-        if "y_true" not in frame.columns or "y_pred" not in frame.columns:
-            raise AuditError(f"input {name} needs y_true and y_pred")
+        if "y_true" not in frame.columns:
+            raise AuditError(f"input {name} needs y_true")
+        if "y_pred" not in frame.columns and LABEL_COLUMN not in frame.columns:
+            raise AuditError(f"input {name} needs y_pred or y_pred_label")
     keys = key_columns(left)
     if key_columns(right) != keys:
         raise AuditError("inputs do not share the same key columns")
@@ -154,13 +178,24 @@ def _aligned(
     if set(indexed_left.index) != set(indexed_right.index):
         raise AuditError("inputs have different interaction keys")
     indexed_right = indexed_right.reindex(indexed_left.index)
-    labels_left = indexed_left["y_true"].to_numpy(dtype=float)
-    labels_right = indexed_right["y_true"].to_numpy(dtype=float)
-    if not np.isfinite(labels_left).all() or not np.isfinite(labels_right).all():
+    labels_left = _truth_text(indexed_left)
+    labels_right = _truth_text(indexed_right)
+    if bool(labels_left.isna().any()) or bool(labels_right.isna().any()):
         raise AuditError("y_true has missing values; compare needs labels on every row")
-    if not np.array_equal(labels_left, labels_right):
+    if not labels_left.equals(labels_right):
         raise AuditError("inputs disagree on y_true for the same interactions")
     return indexed_left, indexed_right
+
+
+def _truth_text(frame: pd.DataFrame) -> pd.Series:
+    truth = cast(pd.Series, frame["y_true"])
+    return cast(pd.Series, truth.map(_label_or_missing))
+
+
+def _label_or_missing(value: object) -> object:
+    if value is None or bool(cast(bool, pd.isna(value))):
+        return pd.NA
+    return label_text(value)
 
 
 def _indexed(df: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
@@ -171,25 +206,59 @@ def _indexed(df: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
     return df.set_index(index)
 
 
+def _filtered(
+    left: pd.DataFrame,
+    right: pd.DataFrame,
+    task: Task,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    truth_series = cast(pd.Series, left["y_true"])
+    pred_a = cast(pd.Series, left[PREDICTED_COLUMN])
+    pred_b = cast(pd.Series, right[PREDICTED_COLUMN])
+    mask = cast(pd.Series, truth_series.notna() & pred_a.notna() & pred_b.notna())
+    truth = _array(cast(pd.Series, truth_series[mask]), task)
+    array_a = _array(cast(pd.Series, pred_a[mask]), task)
+    array_b = _array(cast(pd.Series, pred_b[mask]), task)
+    if truth.size == 0:
+        raise AuditError("inputs have no rows with both predictions")
+    if task == "ranking" and not (np.isfinite(truth).all() and np.isfinite(array_a).all()):
+        raise AuditError("y_pred has missing values; compare needs a prediction on every row")
+    return truth, array_a, array_b
+
+
+def _array(series: pd.Series, task: Task) -> np.ndarray:
+    if task == "ranking":
+        return series.to_numpy(dtype="float64")
+    return np.array([label_text(value) for value in series])
+
+
+def _value(truth: np.ndarray, predicted: np.ndarray, task: Task, metric: str) -> float:
+    scores = score_rows(truth, predicted, task)
+    value = scores.get(metric)
+    if value is None:
+        if metric == "auc" and np.unique(truth).size < 2:
+            raise AuditError("y_true has a single class; AUC is undefined")
+        raise AuditError(f"{metric} is undefined on these rows")
+    return float(value)
+
+
 def _bootstrap(
-    y: np.ndarray,
+    truth: np.ndarray,
     pred_a: np.ndarray,
     pred_b: np.ndarray,
+    task: Task,
+    metric: str,
     rounds: int,
     seed: int,
 ) -> np.ndarray:
     rng = np.random.default_rng(seed)
     deltas = np.empty(rounds, dtype="float64")
-    size = y.size
+    size = truth.size
     for index in range(rounds):
         sample = rng.integers(0, size, size)
-        labels = y[sample]
-        if np.unique(labels).size < 2:
-            deltas[index] = np.nan
-            continue
-        deltas[index] = roc_auc_score(labels, pred_b[sample]) - roc_auc_score(
-            labels, pred_a[sample]
-        )
+        labels = truth[sample]
+        first = score_rows(labels, pred_a[sample], task).get(metric)
+        second = score_rows(labels, pred_b[sample], task).get(metric)
+        deltas[index] = np.nan if first is None or second is None else second - first
     finite = deltas[np.isfinite(deltas)]
     if finite.size == 0:
         raise AuditError("bootstrap produced no finite deltas")
