@@ -43,6 +43,7 @@ def _add_run(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     run.add_argument(
         "--no-degenerate", action="store_true", help="skip degenerate prediction check"
     )
+    run.add_argument("--no-floor", action="store_true", help="skip the majority-class floor check")
 
 
 def _add_compare(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -80,6 +81,7 @@ def _run(args: argparse.Namespace) -> int:
             alignment=config.alignment and not args.no_alignment,
             cheap_baseline=config.cheap_baseline and not args.no_baseline,
             degenerate=config.degenerate and not args.no_degenerate,
+            metric_floor=config.metric_floor and not args.no_floor,
         )
         report = audit_path(args.input, config)
     except (AuditError, FileNotFoundError, ValueError) as exc:

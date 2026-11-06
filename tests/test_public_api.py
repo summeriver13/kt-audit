@@ -42,6 +42,14 @@ def test_audit_config_fields() -> None:
         "cheap_baseline",
         "degenerate",
         "baseline_warn_margin",
+        "task",
+        "metric_floor",
+        "floor_warn_margin",
+        "coverage",
+        "expect_keys",
+        "expect_rows",
+        "reported_n",
+        "reported_acc",
     ]
 
 

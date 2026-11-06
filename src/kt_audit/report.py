@@ -56,6 +56,7 @@ def _header_lines(report: Report) -> list[str]:
         f"- generated: {report.generated_at}",
         f"- tool: kt-audit {report.tool_version}",
         f"- schema: {report.schema_version}",
+        f"- task: {report.input.get('task')}",
         f"- sha256: {report.input.get('sha256') or 'n/a'}",
         f"- rows: {report.input.get('rows')}",
         f"- users: {report.input.get('users')}",
@@ -88,14 +89,26 @@ def _metrics_lines(metrics: dict[str, dict[str, object]]) -> list[str]:
         "",
         "## Metrics",
         "",
-        "| Split | n | AUC | Accuracy |",
-        "| --- | ---: | ---: | ---: |",
+        "| Split | n | Metric | Value | 95% CI | Floor |",
+        "| --- | ---: | --- | ---: | --- | ---: |",
     ]
     for split in sorted(metrics):
-        metric = metrics[split]
+        lines.extend(_split_metric_lines(split, metrics[split]))
+    return lines
+
+
+def _split_metric_lines(split: str, metric: dict[str, object]) -> list[str]:
+    intervals = metric.get("intervals")
+    intervals = intervals if isinstance(intervals, dict) else {}
+    lines = []
+    for name in ("auc", "acc", "macro_f1", "kappa"):
+        value = metric.get(name)
+        if value is None:
+            continue
+        floor = _format_metric(metric.get("majority_share")) if name == "acc" else "n/a"
         lines.append(
-            f"| {split} | {metric.get('n')} | {_format_metric(metric.get('auc'))} "
-            f"| {_format_metric(metric.get('acc'))} |"
+            f"| {split} | {metric.get('n')} | {name} | {_format_metric(value)} "
+            f"| {_format_interval(intervals.get(name))} | {floor} |"
         )
     return lines
 
@@ -130,9 +143,17 @@ def _limitation_lines() -> list[str]:
         "- The multi-KC check needs `item_id`; it is skipped when missing.",
         "- The temporal check assumes timestamps are comparable within a user.",
         "- The cheap baseline uses past-event aggregates only; on sparse data a tree can win by chance.",
-        "- Thresholds in the degenerate check are fixed constants, not tuned per dataset.",
+        "- Thresholds in the degenerate and floor checks are fixed constants, not tuned per dataset.",
+        "- The floor uses the label distribution of the evaluated rows, not of train.",
         "- A passing report does not prove that a model is valid.",
     ]
+
+
+def _format_interval(value: object) -> str:
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        low, high = value
+        return f"[{_format_metric(low)}, {_format_metric(high)}]"
+    return "n/a"
 
 
 def _format_delta(value: object) -> str:

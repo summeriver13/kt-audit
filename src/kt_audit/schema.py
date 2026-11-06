@@ -10,6 +10,13 @@ import pandas as pd
 
 from .config import AuditConfig
 from .errors import AuditError
+from .task import (
+    LABEL_COLUMN,
+    PREDICTED_COLUMN,
+    TASK_COLUMN,
+    predicted_labels,
+    resolve_task,
+)
 
 Severity = Literal["error", "warn", "info"]
 Verdict = Literal["pass", "warn", "fail"]
@@ -155,10 +162,22 @@ def prepare_frame(df: pd.DataFrame, config: AuditConfig) -> pd.DataFrame:
     if has_pred and not has_true:
         raise AuditError("y_pred requires y_true")
     if has_true:
-        out["y_true"] = pd.to_numeric(_series(out, "y_true"), errors="coerce")
+        out["y_true"] = _parse_labels(_series(out, "y_true"))
     if has_pred:
-        out["y_pred"] = pd.to_numeric(_series(out, "y_pred"), errors="coerce")
+        out["y_pred"] = _parse_labels(_series(out, "y_pred"))
+    if LABEL_COLUMN in out.columns:
+        out[LABEL_COLUMN] = _to_string(_series(out, LABEL_COLUMN), LABEL_COLUMN, required=False)
+    task = resolve_task(out, config)
+    out[TASK_COLUMN] = task
+    out[PREDICTED_COLUMN] = predicted_labels(out, task)
     return out
+
+
+def _parse_labels(series: pd.Series) -> pd.Series:
+    numeric = cast(pd.Series, pd.to_numeric(series, errors="coerce"))
+    if int(numeric.notna().sum()) == int(series.notna().sum()):
+        return numeric.astype("float64")
+    return series.astype("object")
 
 
 def _series(df: pd.DataFrame, name: str) -> pd.Series:

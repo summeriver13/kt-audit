@@ -26,6 +26,16 @@ def check_degenerate(df: pd.DataFrame, config: AuditConfig) -> list[Finding]:
                 (),
             )
         ]
+    if not pd.api.types.is_numeric_dtype(df["y_pred"]):
+        return [
+            Finding(
+                "degenerate",
+                "info",
+                "y_pred is not numeric; distribution checks skipped",
+                0,
+                (),
+            )
+        ]
     findings: list[Finding] = []
     for fold, group in iter_folds(df):
         findings.extend(_fold_findings(group, fold, config))

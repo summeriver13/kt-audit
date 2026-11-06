@@ -11,13 +11,15 @@ from ._version import __version__
 from .checks.alignment import check_alignment
 from .checks.baseline import check_cheap_baseline
 from .checks.degenerate import check_degenerate
+from .checks.floor import check_metric_floor
 from .checks.multikc import check_multikc
 from .checks.temporal import check_temporal
 from .config import AuditConfig
 from .errors import AuditError
 from .schema import Finding, Report, Verdict, prepare_frame
+from .task import TASK_COLUMN
 
-SCHEMA_VERSION = "0.2"
+SCHEMA_VERSION = "0.3"
 _SEVERITY_ORDER = {"error": 0, "warn": 1, "info": 2}
 
 
@@ -44,6 +46,8 @@ def audit_frame(
     if config.cheap_baseline:
         baseline_findings, baselines = check_cheap_baseline(prepared, config)
         findings.extend(baseline_findings)
+    if config.metric_floor:
+        findings.extend(check_metric_floor(prepared, config))
     findings.sort(key=_finding_sort_key)
     return Report(
         schema_version=SCHEMA_VERSION,
@@ -97,6 +101,7 @@ def _input_summary(df: pd.DataFrame, digest: str | None) -> dict[str, object]:
     }
     has_items = bool(df["item_id"].notna().any())
     return {
+        "task": str(df[TASK_COLUMN].iloc[0]),
         "rows": len(df),
         "users": int(cast(int, df["user_id"].nunique())),
         "items": int(cast(int, df["item_id"].nunique())) if has_items else None,

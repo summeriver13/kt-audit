@@ -4,10 +4,11 @@ from typing import cast
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, roc_auc_score
 
 from ..config import AuditConfig
-from ..schema import SPLITS, Finding
+from ..metrics import split_metrics
+from ..schema import Finding
+from ..task import LABEL_COLUMN, PREDICTED_COLUMN, TASK_COLUMN, Task
 from ._common import examples_with_fold, fold_example, iter_folds, key_columns
 
 
@@ -15,7 +16,7 @@ def check_alignment(
     df: pd.DataFrame,
     config: AuditConfig,
 ) -> tuple[list[Finding], dict[str, dict[str, object]]]:
-    if "y_pred" not in df.columns:
+    if "y_pred" not in df.columns and LABEL_COLUMN not in df.columns:
         return (
             [
                 Finding(
@@ -29,16 +30,37 @@ def check_alignment(
             {},
         )
 
+    task = _task(df)
     findings: list[Finding] = []
-    findings.extend(_invalid_findings(df, config))
+    findings.extend(_invalid_findings(df, config, task))
     findings.extend(_duplicate_findings(df, config))
     findings.extend(_constant_findings(df))
-    metrics = _metrics(df)
+    metrics = split_metrics(_metric_rows(df, task), task)
     findings.extend(_reported_findings(metrics, config))
     return findings, metrics
 
 
-def _invalid_findings(df: pd.DataFrame, config: AuditConfig) -> list[Finding]:
+def _task(df: pd.DataFrame) -> Task:
+    return cast(Task, str(df[TASK_COLUMN].iloc[0]))
+
+
+def _metric_rows(df: pd.DataFrame, task: Task) -> pd.DataFrame:
+    if task != "ranking" or "y_pred" not in df.columns:
+        return df
+    valid = df.dropna(subset=["y_true", "y_pred"]).copy()
+    pred = valid["y_pred"].astype("float64")
+    true = valid["y_true"].astype("float64")
+    keep = np.isfinite(pred) & pred.between(0, 1) & true.isin([0.0, 1.0])
+    return cast(pd.DataFrame, valid.loc[keep])
+
+
+def _invalid_findings(
+    df: pd.DataFrame,
+    config: AuditConfig,
+    task: Task,
+) -> list[Finding]:
+    if task == "classification":
+        return []
     pred = df["y_pred"].astype("float64")
     true = df["y_true"].astype("float64")
     invalid_pred = ~np.isfinite(pred) | (pred < 0) | (pred > 1)
@@ -99,9 +121,10 @@ def _duplicate_findings(df: pd.DataFrame, config: AuditConfig) -> list[Finding]:
 
 
 def _constant_findings(df: pd.DataFrame) -> list[Finding]:
+    column = "y_pred" if "y_pred" in df.columns else PREDICTED_COLUMN
     findings: list[Finding] = []
     for fold, group in iter_folds(df):
-        if group["y_pred"].nunique(dropna=True) <= 1:
+        if group[column].nunique(dropna=True) <= 1:
             findings.append(
                 Finding(
                     "alignment",
@@ -114,26 +137,17 @@ def _constant_findings(df: pd.DataFrame) -> list[Finding]:
     return findings
 
 
-def _metrics(df: pd.DataFrame) -> dict[str, dict[str, object]]:
-    valid = df.dropna(subset=["y_true", "y_pred"]).copy()
-    pred = valid["y_pred"].astype("float64")
-    true = valid["y_true"].astype("float64")
-    mask = np.isfinite(pred) & pred.between(0, 1) & true.isin([0.0, 1.0])
-    valid = cast(pd.DataFrame, valid.loc[mask])
-    metrics: dict[str, dict[str, object]] = {}
-    for split in SPLITS:
-        part = cast(pd.DataFrame, valid[valid["split"] == split])
-        if part.empty:
-            continue
-        y = cast(pd.Series, part["y_true"]).astype(int)
-        p = cast(pd.Series, part["y_pred"]).astype(float)
-        auc = float(roc_auc_score(y, p)) if y.nunique() == 2 else None
-        acc = float(accuracy_score(y, (p >= 0.5).astype(int)))
-        metrics[split] = {"auc": auc, "acc": acc, "n": len(part)}
-    return metrics
-
-
 def _reported_findings(
+    metrics: dict[str, dict[str, object]],
+    config: AuditConfig,
+) -> list[Finding]:
+    findings: list[Finding] = []
+    findings.extend(_reported_auc_findings(metrics, config))
+    findings.extend(_reported_acc_findings(metrics, config))
+    return findings
+
+
+def _reported_auc_findings(
     metrics: dict[str, dict[str, object]],
     config: AuditConfig,
 ) -> list[Finding]:
@@ -164,6 +178,44 @@ def _reported_findings(
                 {
                     "reported_auc": reported,
                     "recomputed_auc": float(test_auc),
+                    "delta": delta,
+                },
+            ),
+        )
+    ]
+
+
+def _reported_acc_findings(
+    metrics: dict[str, dict[str, object]],
+    config: AuditConfig,
+) -> list[Finding]:
+    reported = config.reported_acc
+    if reported is None:
+        return []
+    test_acc = metrics.get("test", {}).get("acc")
+    if not isinstance(test_acc, (int, float)):
+        return [
+            Finding(
+                "alignment",
+                "warn",
+                "reported_acc is set but test accuracy cannot be computed",
+                0,
+                (),
+            )
+        ]
+    delta = abs(float(test_acc) - reported)
+    if delta <= config.auc_tolerance:
+        return []
+    return [
+        Finding(
+            "alignment",
+            "error",
+            "reported test accuracy differs from recomputed accuracy",
+            1,
+            (
+                {
+                    "reported_acc": reported,
+                    "recomputed_acc": float(test_acc),
                     "delta": delta,
                 },
             ),

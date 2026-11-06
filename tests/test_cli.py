@@ -44,11 +44,21 @@ def test_cli_clean_returns_0(tmp_path: Path, clean_rows) -> None:
 def test_cli_accepts_new_skip_flags(tmp_path: Path) -> None:
     path = Path(__file__).parents[1] / "examples" / "floor.csv"
     out = tmp_path / "report"
-    args = ["run", str(path), "--out", str(out), "--no-baseline", "--no-degenerate"]
+    args = [
+        "run",
+        str(path),
+        "--out",
+        str(out),
+        "--no-baseline",
+        "--no-degenerate",
+        "--no-floor",
+    ]
     assert main(args) == 0
     payload = json.loads((out / "report.json").read_text(encoding="utf-8"))
     assert payload["baselines"] == {}
-    assert not any(finding["check"] == "degenerate" for finding in payload["findings"])
+    checks = {finding["check"] for finding in payload["findings"]}
+    assert "degenerate" not in checks
+    assert "metric_floor" not in checks
 
 
 def test_cli_writes_provenance(tmp_path: Path, clean_rows) -> None:

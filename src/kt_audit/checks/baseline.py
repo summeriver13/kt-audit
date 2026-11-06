@@ -9,6 +9,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 from ..config import AuditConfig
 from ..schema import Finding
+from ..task import TASK_COLUMN
 from ._common import fold_example, iter_folds
 
 MIN_TRAIN_ROWS = 50
@@ -35,6 +36,19 @@ def check_cheap_baseline(
     df: pd.DataFrame,
     config: AuditConfig,
 ) -> tuple[list[Finding], dict[str, dict[str, object]]]:
+    if str(df[TASK_COLUMN].iloc[0]) == "classification":
+        return (
+            [
+                Finding(
+                    "cheap_baseline",
+                    "info",
+                    "classification task; the ranking baseline is skipped",
+                    0,
+                    (),
+                )
+            ],
+            {},
+        )
     if "y_true" not in df.columns:
         return (
             [

@@ -37,7 +37,7 @@ import sys
 
 with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
-assert payload["schema_version"] == "0.2"
+assert payload["schema_version"] == "0.3"
 assert payload["verdict"] == "fail"
 print("report: ok")
 PY

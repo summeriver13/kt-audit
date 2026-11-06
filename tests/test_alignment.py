@@ -76,6 +76,26 @@ def test_alignment_single_class_has_no_auc(make_frame, clean_rows) -> None:
     assert metrics["test"]["auc"] is None
 
 
+def test_alignment_multi_class_skips_the_binary_checks(make_frame) -> None:
+    rows: list[dict[str, object]] = [
+        {
+            "user_id": f"u{index}",
+            "item_id": f"q{index}",
+            "kc_ids": "kc_a",
+            "timestamp": f"2024-01-01T{index:02d}:00:00",
+            "split": "test",
+            "y_true": ["PE", "CG", "RF", "TD"][index % 4],
+            "y_pred_label": ["PE", "PE", "RF", "TD"][index % 4],
+        }
+        for index in range(8)
+    ]
+    findings, metrics = _prepare(make_frame, rows)
+    assert not any(finding.message == "y_true is not binary" for finding in findings)
+    assert metrics["test"]["n"] == 8
+    assert metrics["test"]["acc"] == 0.75
+    assert metrics["test"]["auc"] is None
+
+
 def test_alignment_key_fallback_without_item_id(make_frame, clean_rows) -> None:
     df = make_frame(clean_rows).drop(columns=["item_id"])
     duplicated = pd.concat([df, df.iloc[[0]]], ignore_index=True)
