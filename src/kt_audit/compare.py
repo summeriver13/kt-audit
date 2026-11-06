@@ -12,7 +12,7 @@ from .audit import read_table
 from .checks._common import key_columns
 from .config import AuditConfig
 from .errors import AuditError
-from .metrics import score_rows
+from .metrics import sample_from_arrays, sample_pair
 from .schema import prepare_frame
 from .task import LABEL_COLUMN, PREDICTED_COLUMN, TASK_COLUMN, Task, label_text
 
@@ -228,11 +228,11 @@ def _filtered(
 def _array(series: pd.Series, task: Task) -> np.ndarray:
     if task == "ranking":
         return series.to_numpy(dtype="float64")
-    return np.array([label_text(value) for value in series])
+    return series.to_numpy(dtype=object)
 
 
 def _value(truth: np.ndarray, predicted: np.ndarray, task: Task, metric: str) -> float:
-    scores = score_rows(truth, predicted, task)
+    scores = sample_from_arrays(truth, predicted, task).score(task)
     value = scores.get(metric)
     if value is None:
         if metric == "auc" and np.unique(truth).size < 2:
@@ -250,14 +250,13 @@ def _bootstrap(
     rounds: int,
     seed: int,
 ) -> np.ndarray:
+    left, right = sample_pair(truth, pred_a, pred_b, task)
     rng = np.random.default_rng(seed)
     deltas = np.empty(rounds, dtype="float64")
-    size = truth.size
     for index in range(rounds):
-        sample = rng.integers(0, size, size)
-        labels = truth[sample]
-        first = score_rows(labels, pred_a[sample], task).get(metric)
-        second = score_rows(labels, pred_b[sample], task).get(metric)
+        rows = rng.integers(0, left.size, left.size)
+        first = left.take(rows).score(task).get(metric)
+        second = right.take(rows).score(task).get(metric)
         deltas[index] = np.nan if first is None or second is None else second - first
     finite = deltas[np.isfinite(deltas)]
     if finite.size == 0:

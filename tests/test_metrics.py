@@ -5,7 +5,9 @@ from typing import cast
 
 import numpy as np
 import pandas as pd
+import pytest
 
+import kt_audit.metrics as metrics_module
 from kt_audit.metrics import MIN_ROWS, bootstrap_intervals, evaluate, label_stats, split_metrics
 from kt_audit.task import PREDICTED_COLUMN
 
@@ -96,3 +98,42 @@ def test_ranking_metrics_keep_auc() -> None:
     assert metrics["test"]["acc"] == 1.0
     intervals = cast(dict[str, list[float]], metrics["test"]["intervals"])
     assert "auc" in intervals
+
+
+def test_evaluate_reads_each_label_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[object] = []
+    original = metrics_module.label_text
+
+    def spy(value: object) -> str:
+        seen.append(value)
+        return original(value)
+
+    monkeypatch.setattr(metrics_module, "label_text", spy)
+    truth = pd.Series(["A", "B"] * 50)
+    predicted = pd.Series(["A", "C"] * 50)
+    evaluate(truth, predicted, "classification")
+    assert len(seen) == 200
+
+
+def test_bootstrap_scores_without_reading_the_labels_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[object] = []
+    original = metrics_module.label_text
+
+    def spy(value: object) -> str:
+        seen.append(value)
+        return original(value)
+
+    monkeypatch.setattr(metrics_module, "label_text", spy)
+    labels = ["A", "B"] * 60
+    predictions = ["A", "C"] * 60
+    bootstrap_intervals(_frame(labels, predictions), "classification", rounds=50)
+    assert len(seen) == 240
+
+
+def test_ranking_leaves_auc_empty_for_labels_outside_zero_and_one() -> None:
+    truth = pd.Series([0.0, 1.0, 2.0, 0.0])
+    scores = evaluate(truth, pd.Series([0.2, 0.8, 0.5, 0.1]), "ranking")
+    assert scores["auc"] is None
+    assert scores["acc"] == 0.75

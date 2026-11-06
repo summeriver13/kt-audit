@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import cast
 
 import numpy as np
@@ -16,37 +18,98 @@ MIN_ROWS = 30
 MIN_ROUNDS = 50
 BINARY_THRESHOLD = 0.5
 METRIC_NAMES = ("auc", "acc", "macro_f1", "kappa")
+_BINARY_LABELS = (0.0, 1.0)
+
+
+@dataclass(frozen=True)
+class Sample:
+    """Rows encoded once, so a resample scores without reading any label twice."""
+
+    truth_codes: np.ndarray
+    answer_codes: np.ndarray
+    truth_labels: np.ndarray | None = None
+    scores: np.ndarray | None = None
+
+    @property
+    def size(self) -> int:
+        return int(self.truth_codes.size)
+
+    def take(self, index: np.ndarray) -> Sample:
+        return Sample(
+            truth_codes=self.truth_codes[index],
+            answer_codes=self.answer_codes[index],
+            truth_labels=None if self.truth_labels is None else self.truth_labels[index],
+            scores=None if self.scores is None else self.scores[index],
+        )
+
+    def score(self, task: Task) -> dict[str, float | None]:
+        result: dict[str, float | None] = dict.fromkeys(METRIC_NAMES)
+        if self.size == 0:
+            return result
+        result["acc"] = float(accuracy_score(self.truth_codes, self.answer_codes))
+        if np.unique(self.truth_codes).size > 1:
+            result["macro_f1"] = float(
+                f1_score(
+                    self.truth_codes,
+                    self.answer_codes,
+                    average="macro",
+                    zero_division=cast(str, 0),
+                )
+            )
+            result["kappa"] = float(cohen_kappa_score(self.truth_codes, self.answer_codes))
+        result["auc"] = self._auc(task)
+        return result
+
+    def _auc(self, task: Task) -> float | None:
+        if task != "ranking" or self.truth_labels is None or self.scores is None:
+            return None
+        if not _auc_ready(self.truth_labels):
+            return None
+        return float(roc_auc_score(self.truth_labels, self.scores))
+
+
+def encode_labels(arrays: Sequence[np.ndarray]) -> list[np.ndarray]:
+    """Map several label arrays onto one integer code space."""
+    sizes = [np.asarray(array).size for array in arrays]
+    if not sizes or sum(sizes) == 0:
+        return [np.zeros(0, dtype="int64") for _ in sizes]
+    joined = np.concatenate([np.asarray(array) for array in arrays])
+    codes, _ = pd.factorize(joined)
+    bounds = np.cumsum([0, *sizes])
+    return [codes[bounds[index] : bounds[index + 1]] for index in range(len(sizes))]
+
+
+def sample_from_arrays(truth: np.ndarray, predicted: np.ndarray, task: Task) -> Sample:
+    if task == "ranking":
+        return _ranking_sample(truth, predicted)
+    return _label_sample(truth, predicted)
+
+
+def sample_from_series(truth: pd.Series, predicted: pd.Series, task: Task) -> Sample:
+    mask = cast(pd.Series, truth.notna() & predicted.notna())
+    return sample_from_arrays(
+        cast(pd.Series, truth[mask]).to_numpy(),
+        cast(pd.Series, predicted[mask]).to_numpy(),
+        task,
+    )
+
+
+def sample_pair(
+    truth: np.ndarray,
+    left: np.ndarray,
+    right: np.ndarray,
+    task: Task,
+) -> tuple[Sample, Sample]:
+    """Two prediction sets of the same rows, so one resample scores both."""
+    if task == "ranking":
+        return _ranking_sample(truth, left), _ranking_sample(truth, right)
+    truth_codes, left_codes, right_codes = encode_labels([truth, left, right])
+    return Sample(truth_codes, left_codes), Sample(truth_codes, right_codes)
 
 
 def evaluate(truth: pd.Series, predicted: pd.Series, task: Task) -> dict[str, object]:
-    mask = cast(pd.Series, truth.notna() & predicted.notna())
-    values = _arrays(cast(pd.Series, truth[mask]), cast(pd.Series, predicted[mask]), task)
-    scores = score_rows(values[0], values[1], task)
-    return {"n": int(values[0].size), **scores}
-
-
-def score_rows(truth: np.ndarray, predicted: np.ndarray, task: Task) -> dict[str, float | None]:
-    scores: dict[str, float | None] = dict.fromkeys(METRIC_NAMES)
-    if truth.size == 0:
-        return scores
-    if task == "ranking":
-        labels = truth.astype("float64")
-        probs = predicted.astype("float64")
-        answers = (probs >= BINARY_THRESHOLD).astype("float64")
-        if np.unique(labels).size > 1:
-            scores["auc"] = float(roc_auc_score(labels, probs))
-        truth_text = np.array([label_text(value) for value in labels])
-        pred_text = np.array([label_text(value) for value in answers])
-    else:
-        truth_text = np.array([label_text(value) for value in truth])
-        pred_text = np.array([label_text(value) for value in predicted])
-    scores["acc"] = float(accuracy_score(truth_text, pred_text))
-    if np.unique(truth_text).size > 1:
-        scores["macro_f1"] = float(
-            f1_score(truth_text, pred_text, average="macro", zero_division=cast(str, 0))
-        )
-        scores["kappa"] = float(cohen_kappa_score(truth_text, pred_text))
-    return scores
+    sample = sample_from_series(truth, predicted, task)
+    return {"n": sample.size, **sample.score(task)}
 
 
 def label_stats(truth: pd.Series) -> dict[str, object]:
@@ -96,21 +159,18 @@ def bootstrap_intervals(
     rounds: int = BOOTSTRAP_ROUNDS,
     seed: int = BOOTSTRAP_SEED,
 ) -> dict[str, list[float]]:
-    truth_column = cast(pd.Series, df["y_true"])
-    pred_column = cast(pd.Series, df[PREDICTED_COLUMN])
-    mask = cast(pd.Series, truth_column.notna() & pred_column.notna())
-    truth, predicted = _arrays(
-        cast(pd.Series, truth_column[mask]),
-        cast(pd.Series, pred_column[mask]),
+    sample = sample_from_series(
+        cast(pd.Series, df["y_true"]),
+        cast(pd.Series, df[PREDICTED_COLUMN]),
         task,
     )
-    if truth.size == 0 or rounds < 1:
+    if sample.size == 0 or rounds < 1:
         return {}
     rng = np.random.default_rng(seed)
     collected: dict[str, list[float]] = {name: [] for name in METRIC_NAMES}
     for _ in range(rounds):
-        index = rng.integers(0, truth.size, truth.size)
-        for name, value in score_rows(truth[index], predicted[index], task).items():
+        index = rng.integers(0, sample.size, sample.size)
+        for name, value in sample.take(index).score(task).items():
             if value is not None:
                 collected[name].append(value)
     intervals: dict[str, list[float]] = {}
@@ -122,16 +182,24 @@ def bootstrap_intervals(
     return intervals
 
 
-def _arrays(
-    truth: pd.Series,
-    predicted: pd.Series,
-    task: Task,
-) -> tuple[np.ndarray, np.ndarray]:
-    if task == "ranking":
-        labels = truth.astype("float64").to_numpy()
-        probs = predicted.astype("float64").to_numpy()
-        finite = np.isfinite(labels) & np.isfinite(probs)
-        return labels[finite], probs[finite]
-    labels = np.array([label_text(value) for value in truth])
-    preds = np.array([label_text(value) for value in predicted])
-    return labels, preds
+def _label_sample(truth: np.ndarray, predicted: np.ndarray) -> Sample:
+    truth_text = np.array([label_text(value) for value in truth], dtype=object)
+    answer_text = np.array([label_text(value) for value in predicted], dtype=object)
+    truth_codes, answer_codes = encode_labels([truth_text, answer_text])
+    return Sample(truth_codes, answer_codes)
+
+
+def _ranking_sample(truth: np.ndarray, predicted: np.ndarray) -> Sample:
+    labels = np.asarray(truth, dtype="float64")
+    scores = np.asarray(predicted, dtype="float64")
+    finite = np.isfinite(labels) & np.isfinite(scores)
+    labels, scores = labels[finite], scores[finite]
+    answers = np.where(scores >= BINARY_THRESHOLD, 1.0, 0.0)
+    truth_codes, answer_codes = encode_labels([labels, answers])
+    return Sample(truth_codes, answer_codes, labels, scores)
+
+
+def _auc_ready(labels: np.ndarray) -> bool:
+    if labels.size == 0 or np.unique(labels).size < 2:
+        return False
+    return bool(np.isin(labels, _BINARY_LABELS).all())
