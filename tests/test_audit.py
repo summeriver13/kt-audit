@@ -90,3 +90,23 @@ def test_audit_frame_warn_only(make_frame, clean_rows) -> None:
     report = audit_frame(make_frame(rows))
     assert report.verdict == "warn"
     assert report.findings
+
+
+def test_audit_frame_reports_a_label_outside_zero_and_one(make_frame) -> None:
+    rows: list[dict[str, object]] = []
+    for index in range(120):
+        split = "train" if index < 60 else "test"
+        rows.append(
+            {
+                "user_id": f"u{index % 12}",
+                "item_id": f"q{index % 30}",
+                "kc_ids": "kc_a",
+                "timestamp": index,
+                "split": split,
+                "y_true": 2.0 if index == 7 else float(index % 2),
+                "y_pred": 0.2 if split == "train" else (0.9 if index % 2 else 0.1),
+            }
+        )
+    report = audit_frame(make_frame(rows))
+    assert report.verdict == "fail"
+    assert any(finding.message == "y_true is not binary" for finding in report.findings)

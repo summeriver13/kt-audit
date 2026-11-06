@@ -17,6 +17,7 @@ MIN_EVALUATION_ROWS = 30
 TREE_DEPTH = 4
 RANDOM_STATE = 0
 MAX_ROWS = 200_000
+BINARY_LABELS = (0.0, 1.0)
 SECONDS_PER_HOUR = 3600.0
 MISSING_GAP = -1.0
 NEUTRAL_ACC = 0.5
@@ -93,10 +94,14 @@ def _fold(
     labelled = cast(pd.DataFrame, df[df["y_true"].notna()])
     train = cast(pd.DataFrame, labelled[labelled["split"] == "train"])
     evaluation = _evaluation_rows(labelled)
+    if not bool(cast(pd.Series, labelled["y_true"]).isin(BINARY_LABELS).all()):
+        return ([_skip(fold, "y_true is not binary")], None)
     if len(train) < MIN_TRAIN_ROWS:
         return ([_skip(fold, "the training split is too small")], None)
     if len(evaluation) < MIN_EVALUATION_ROWS:
         return ([_skip(fold, "the evaluation split is too small")], None)
+    if cast(pd.Series, train["y_true"]).nunique() < 2:
+        return ([_skip(fold, "the training split has a single class")], None)
     if evaluation["y_true"].nunique() < 2:
         return ([_skip(fold, "the evaluation split has a single class")], None)
     features = _features(df)

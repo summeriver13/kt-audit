@@ -153,3 +153,14 @@ def test_reported_auc_without_predictions_labels_frame(make_frame) -> None:
     findings, baselines = check_cheap_baseline(prepare_frame(frame, config), config)
     assert findings == []
     assert baselines["__all__"]["model_auc"] == 0.9
+
+
+def test_skips_when_training_split_has_one_class(make_frame) -> None:
+    rows = _dataset(lambda label, index: 0.1 + 0.8 * label)
+    for row in rows:
+        if row["split"] == "train":
+            row["y_true"] = 0
+    findings, baselines = _check(make_frame, rows, AuditConfig())
+    assert findings[0].severity == "info"
+    assert "training split has a single class" in findings[0].message
+    assert baselines == {}
