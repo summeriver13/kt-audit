@@ -78,13 +78,13 @@ def test_report_fields() -> None:
 
 def test_audit_frame_signature() -> None:
     parameters = inspect.signature(audit_frame).parameters
-    assert list(parameters) == ["df", "config", "digest"]
+    assert list(parameters) == ["df", "config", "digest", "expect", "expect_digest"]
     assert parameters["config"].default is None
 
 
 def test_audit_path_signature() -> None:
     parameters = inspect.signature(audit_path).parameters
-    assert list(parameters) == ["path", "config"]
+    assert list(parameters) == ["path", "config", "expect"]
     assert parameters["config"].default is None
 
 

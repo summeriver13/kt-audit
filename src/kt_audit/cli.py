@@ -44,6 +44,19 @@ def _add_run(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         "--no-degenerate", action="store_true", help="skip degenerate prediction check"
     )
     run.add_argument("--no-floor", action="store_true", help="skip the majority-class floor check")
+    run.add_argument("--no-coverage", action="store_true", help="skip the row coverage check")
+    run.add_argument(
+        "--expect",
+        type=Path,
+        default=None,
+        help="CSV or JSONL of expected keys; every expected key must appear once",
+    )
+    run.add_argument(
+        "--expect-rows",
+        type=int,
+        default=None,
+        help="expected number of rows; a mismatch is a warning",
+    )
 
 
 def _add_compare(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -82,8 +95,10 @@ def _run(args: argparse.Namespace) -> int:
             cheap_baseline=config.cheap_baseline and not args.no_baseline,
             degenerate=config.degenerate and not args.no_degenerate,
             metric_floor=config.metric_floor and not args.no_floor,
+            coverage=config.coverage and not args.no_coverage,
+            expect_rows=args.expect_rows if args.expect_rows is not None else config.expect_rows,
         )
-        report = audit_path(args.input, config)
+        report = audit_path(args.input, config, expect=args.expect)
     except (AuditError, FileNotFoundError, ValueError) as exc:
         print(f"kt-audit: {exc}", file=sys.stderr)
         return 2

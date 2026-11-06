@@ -10,6 +10,7 @@ import pandas as pd
 from ._version import __version__
 from .checks.alignment import check_alignment
 from .checks.baseline import check_cheap_baseline
+from .checks.coverage import check_coverage
 from .checks.degenerate import check_degenerate
 from .checks.floor import check_metric_floor
 from .checks.multikc import check_multikc
@@ -28,6 +29,8 @@ def audit_frame(
     config: AuditConfig | None = None,
     *,
     digest: str | None = None,
+    expect: pd.DataFrame | None = None,
+    expect_digest: str | None = None,
 ) -> Report:
     config = config or AuditConfig()
     prepared = prepare_frame(df, config)
@@ -48,11 +51,13 @@ def audit_frame(
         findings.extend(baseline_findings)
     if config.metric_floor:
         findings.extend(check_metric_floor(prepared, config))
+    if config.coverage:
+        findings.extend(check_coverage(prepared, config, expect))
     findings.sort(key=_finding_sort_key)
     return Report(
         schema_version=SCHEMA_VERSION,
         generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        input=_input_summary(prepared, digest),
+        input=_input_summary(prepared, digest, expect, expect_digest),
         findings=tuple(findings),
         metrics=metrics,
         verdict=_verdict(findings),
@@ -77,9 +82,33 @@ def file_digest(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def audit_path(path: str | Path, config: AuditConfig | None = None) -> Report:
+def audit_path(
+    path: str | Path,
+    config: AuditConfig | None = None,
+    *,
+    expect: str | Path | None = None,
+) -> Report:
     resolved = Path(path)
-    return audit_frame(read_table(resolved), config, digest=file_digest(resolved))
+    config = config or AuditConfig()
+    expected, expected_digest = _expected(config, expect)
+    return audit_frame(
+        read_table(resolved),
+        config,
+        digest=file_digest(resolved),
+        expect=expected,
+        expect_digest=expected_digest,
+    )
+
+
+def _expected(
+    config: AuditConfig,
+    expect: str | Path | None,
+) -> tuple[pd.DataFrame | None, str | None]:
+    source = expect if expect is not None else config.expect_keys
+    if source is None:
+        return None, None
+    path = Path(source)
+    return read_table(path), file_digest(path)
 
 
 def _finding_sort_key(finding: Finding) -> tuple[int, str, str]:
@@ -95,7 +124,12 @@ def _verdict(findings: list[Finding]) -> Verdict:
     return "pass"
 
 
-def _input_summary(df: pd.DataFrame, digest: str | None) -> dict[str, object]:
+def _input_summary(
+    df: pd.DataFrame,
+    digest: str | None,
+    expect: pd.DataFrame | None = None,
+    expect_digest: str | None = None,
+) -> dict[str, object]:
     splits = {
         str(key): int(value) for key, value in df["split"].value_counts().sort_index().items()
     }
@@ -108,4 +142,5 @@ def _input_summary(df: pd.DataFrame, digest: str | None) -> dict[str, object]:
         "folds": int(cast(int, df["_fold"].nunique())),
         "splits": splits,
         "sha256": digest,
+        "expect": None if expect is None else {"rows": len(expect), "sha256": expect_digest},
     }

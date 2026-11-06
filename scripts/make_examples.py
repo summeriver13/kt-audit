@@ -11,6 +11,15 @@ EVENTS = 30
 TRAIN_EVENTS = 24
 ITEMS = 20
 DEADLINE = "2024-01-01"
+LABELS = ("Recall Failure", "Conceptual Gap", "Procedural Error", "Transfer Deficit")
+LABEL_SHARES = (0.21, 0.18, 0.51, 0.10)
+MULTICLASS_USERS = 30
+MULTICLASS_EVENTS = 8
+MULTICLASS_TRAIN = 6
+ACCURATE_SHARE = 0.15
+WRONG_LABEL = "Conceptual Gap"
+DROPPED_TEST_ROWS = 8
+DROPPED_BLANK_LABELS = 2
 
 
 def _abilities(rng: np.random.Generator) -> np.ndarray:
@@ -87,8 +96,48 @@ def compare_rows() -> list[dict[str, object]]:
     return rows
 
 
+def multiclass_rows() -> list[dict[str, object]]:
+    rng = np.random.default_rng(17)
+    rows: list[dict[str, object]] = []
+    for user in range(MULTICLASS_USERS):
+        for index in range(MULTICLASS_EVENTS):
+            label = str(rng.choice(LABELS, p=LABEL_SHARES))
+            prediction = label if rng.random() < ACCURATE_SHARE else WRONG_LABEL
+            rows.append(
+                {
+                    "user_id": f"u{user:02d}",
+                    "item_id": f"q{index:02d}",
+                    "kc_ids": f"kc_{index:02d}",
+                    "timestamp": f"2024-02-{1 + index:02d}T{user % 24:02d}:00:00",
+                    "split": "train" if index < MULTICLASS_TRAIN else "test",
+                    "y_true": label,
+                    "y_pred_label": prediction,
+                }
+            )
+    return rows
+
+
+def dropped_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    kept: list[dict[str, object]] = []
+    removed = 0
+    blanked = 0
+    for row in rows:
+        if row["split"] == "test" and removed < DROPPED_TEST_ROWS:
+            removed += 1
+            continue
+        copy = dict(row)
+        if copy["split"] == "test" and blanked < DROPPED_BLANK_LABELS:
+            copy["y_pred_label"] = ""
+            blanked += 1
+        kept.append(copy)
+    return kept
+
+
 def main() -> None:
     _write("floor.csv", floor_rows())
+    multiclass = multiclass_rows()
+    _write("multiclass.csv", multiclass)
+    _write("dropped_rows.csv", dropped_rows(multiclass))
     _write("degenerate.csv", degenerate_rows())
     comparisons = compare_rows()
     _write(
