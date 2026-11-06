@@ -4,6 +4,31 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [Unreleased]
 
+### Added
+
+- `metric_floor`: accuracy compared with always answering the majority label of the same rows.
+- `coverage`: expected keys (`--expect`), expected row count (`--expect-rows`), the reported `n`
+  (`reported_n`), and empty or `ERROR` predicted labels.
+- Classification files: a `y_pred_label` column or a non-numeric label column switches the file to
+  accuracy, macro-F1 and kappa. `AuditConfig.task` forces either mode.
+- A percentile bootstrap interval for every metric in `metrics[split]["intervals"]`; the
+  `## Metrics` table prints the interval next to the value and the floor.
+- `compare --metric {auc,acc,macro_f1,kappa}`.
+- `AuditConfig` fields `task`, `metric_floor`, `floor_warn_margin`, `coverage`, `expect_keys`,
+  `expect_rows`, `reported_n`, `reported_acc`.
+- `audit_path(..., expect=...)`; `audit_frame(..., expect=..., expect_digest=...)`; `input.expect`
+  records the size and hash of the expected set.
+- Examples `multiclass.csv` and `dropped_rows.csv`; `docs/rfc-0.3.md`;
+  `docs/case-study-longtutor.md`.
+
+### Changed
+
+- `schema_version` is `0.3`; fields were added inside `metrics[split]`.
+- `comparison.json` names the `metric` and prints `value_a` / `value_b` instead of `auc_a` /
+  `auc_b`.
+- `degenerate` reports "no numeric predictions" instead of a missing column when the file carries
+  labels only.
+
 ## [0.2.0] - 2026-10-26
 
 ### Added

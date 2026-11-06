@@ -125,7 +125,19 @@ v0.1 管「协议合法吗」。2026-10 的两次实测说明协议合法的数�
 | provenance | `report.json` 记录 `tool_version` 与输入 `sha256` |
 | `compare` | 同批行配对 bootstrap，ΔAUC 的 95% 区间跨 0 记 tie |
 
-v0.3 候选：pyKT adapter、HTML 报告、离线 `judge-audit`、重复交互、序列截断。
+## v0.3 范围（2026-11-07，已定案）
+
+v0.2 只判 AUC 一种指标、只收 0/1 标签。但 2026-10/11 的实测里，失效发生在别处：14 个模型的 Acc 全部低于多数类基线，13 个模型的 Acc 落在 26–42 而基线是 50.6；诊断标签有四类，工具却直接拒收。因此 v0.3 不新增检查种类，而是把同一套判据铺到标签型指标上。详见 `docs/rfc-0.3.md`。
+
+| 件 | 判据 |
+| --- | --- |
+| 分类文件 | `y_pred_label` 列或非数值标签列即 classification，报 Acc / Macro-F1 / κ |
+| 区间 | 每个指标 2000 轮百分位 bootstrap，seed 0；点估计旁边就给区间 |
+| `metric_floor` | Acc 低于同批行的多数类占比记 error，差 < 0.02 记 warn |
+| `coverage` | 期望键缺失、报告 n 与行数不符、预测标签为空或以 `ERROR` 开头记 error |
+| `compare --metric` | ΔAUC / ΔAcc / ΔMacro-F1 / Δκ 都走同一套配对 bootstrap |
+
+v0.4 候选：`label_rule`（用文件自身列训深度 4 树，看标签是否可由列生成）、离线 `judge-audit`、pyKT adapter、HTML 报告、重复交互、序列截断。
 
 ## 风险
 

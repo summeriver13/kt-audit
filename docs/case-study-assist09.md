@@ -31,7 +31,7 @@ All findings are `info`:
 | Check | Finding |
 | --- | --- |
 | `alignment` | `y_pred` is missing; metric checks skipped |
-| `degenerate` | `y_pred` is missing; distribution checks skipped |
+| `degenerate` | no numeric predictions; distribution checks skipped |
 | `multi_kc` | the same item appears in train and test (9,174 of 14,759 items) |
 | `temporal_split` | global timestamps overlap across splits |
 | `temporal_split` | users appear in more than one split (1,791 users) |

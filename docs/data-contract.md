@@ -11,8 +11,9 @@
 | `split` | string | 是 | `train` / `valid` / `test`；`val`、`validation` 会归一为 `valid` |
 | `kc_ids` | string/list | 是 | 管道分隔或 `["kc_a","kc_b"]`；至少一个 |
 | `item_id` | string/int | 否 | 缺失时跳过 multi-KC 检查 |
-| `y_true` | 0/1 | 否 | 有 `y_pred` 时必填；不能是 NaN |
-| `y_pred` | float | 否 | 有限值，且 `0 <= y_pred <= 1` |
+| `y_true` | 0/1 或多类标签 | 否 | 有预测列时必填；不能是 NaN。非 0/1 或多类标签走 classification |
+| `y_pred` | float 或标签 | 否 | ranking 文件是 `[0,1]` 内的有限值；classification 文件可以是标签 |
+| `y_pred_label` | 标签 | 否 | 预测标签；出现该列即视为 classification 文件 |
 | `fold` | int/string | 否 | 有 fold 时按 fold 分别跑检查 |
 | `sequence_id` | string/int | 否 | 用于序列级检查（v0.2） |
 | `position` | int | 否 | 序列内位置；`cheap_baseline` 用作特征 |
@@ -23,8 +24,16 @@
 - `kc_ids`：以 `[` 开头按 JSON 数组解析；否则按 `|` 分割、strip、去空。
 - `timestamp`：优先 `pandas.to_datetime`；数值保持数值。若解析后既有 tz-aware 又有 naive，报错。
 - `user_id` / `item_id`：统一转字符串，保留原始值用于报告。
-- `y_true`：只接受 0/1（含 `0.0`/`1.0`）。
-- `y_pred`：必须是有限浮点，范围 [0,1]。
+- `y_true`：全部可解析为数值时按数值处理，否则保留原始标签。数值标签中只要出现 0/1 以外的值，ranking 检查报「y_true is not binary」。
+- `y_pred`：全部可解析为数值时按 float 处理，否则保留标签。
+- 任务（task）：有 `y_pred_label` 列、或 `y_true`/`y_pred` 非数值时为 `classification`，其余为 `ranking`。可用配置项 `task` 强制指定 `auto` / `ranking` / `classification`。
+
+## 任务与指标
+
+| 任务 | 指标 | 跳过的检查 |
+| --- | --- | --- |
+| `ranking` | AUC、Accuracy、Macro-F1、Kappa | 无 |
+| `classification` | Accuracy、Macro-F1、Kappa | `cheap_baseline`（它判断的是排序） |
 
 ## 主键
 
@@ -58,7 +67,9 @@ u2,q3,kc_c,2024-01-02T09:10:00,test,0,0.20
 
 `kt-audit compare a.csv b.csv` 要求：
 
-- 两份输入都必须有 `y_true` 与 `y_pred`。
+- 两份输入都必须有 `y_true`，以及 `y_pred` 或 `y_pred_label` 之一。
+- 两份输入的 task 必须一致。
+- `--metric` 取 `auc` / `acc` / `macro_f1` / `kappa`；`auc` 只接受 ranking 输入。
 - 主键集合完全相同（按上节规则选主键）；顺序可以不同。
 - 同一主键的 `y_true` 必须一致，否则报错退出（码 2）。
 
