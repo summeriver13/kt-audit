@@ -19,6 +19,7 @@ class AuditConfig:
     max_examples: int = 3
     reported_auc: float | None = None
     auc_tolerance: float = 0.01
+    acc_tolerance: float = 0.01
     cheap_baseline: bool = True
     degenerate: bool = True
     baseline_warn_margin: float = 0.02
@@ -38,6 +39,8 @@ class AuditConfig:
             raise ValueError("max_examples must be >= 1")
         if self.auc_tolerance < 0:
             raise ValueError("auc_tolerance must be >= 0")
+        if self.acc_tolerance < 0:
+            raise ValueError("acc_tolerance must be >= 0")
         if self.reported_auc is not None and not 0 <= self.reported_auc <= 1:
             raise ValueError("reported_auc must be in [0, 1]")
         if self.baseline_warn_margin < 0:

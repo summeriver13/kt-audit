@@ -204,7 +204,7 @@ def _reported_acc_findings(
             )
         ]
     delta = abs(float(test_acc) - reported)
-    if delta <= config.auc_tolerance:
+    if delta <= config.acc_tolerance:
         return []
     return [
         Finding(

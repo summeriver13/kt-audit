@@ -39,6 +39,7 @@ def test_audit_config_fields() -> None:
         "max_examples",
         "reported_auc",
         "auc_tolerance",
+        "acc_tolerance",
         "cheap_baseline",
         "degenerate",
         "baseline_warn_margin",

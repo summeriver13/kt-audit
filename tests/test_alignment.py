@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 import pandas as pd
 
 from kt_audit import AuditConfig
@@ -59,6 +61,15 @@ def test_alignment_reported_auc_mismatch(make_frame, clean_rows) -> None:
     assert any(
         finding.message == "reported test AUC differs from recomputed AUC" for finding in findings
     )
+
+
+def test_reported_acc_keeps_its_own_tolerance(make_frame, clean_rows) -> None:
+    _, metrics = _prepare(make_frame, clean_rows)
+    accuracy = cast(float, metrics["test"]["acc"])
+    config = AuditConfig(reported_acc=accuracy - 0.015, auc_tolerance=0.02)
+    findings, _ = _prepare(make_frame, clean_rows, config)
+    messages = [finding.message for finding in findings]
+    assert "reported test accuracy differs from recomputed accuracy" in messages
 
 
 def test_alignment_skips_without_predictions(make_frame, clean_rows) -> None:
