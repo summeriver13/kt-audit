@@ -57,6 +57,15 @@ def test_flags_rare_minority(make_frame) -> None:
     assert any("minority class" in finding.message for finding in findings)
 
 
+def test_flags_rare_minority_in_a_four_class_file(make_frame) -> None:
+    rows = _rows(200, lambda index: 0.1 + (index % 20) * 0.04)
+    labels = ["A"] * 120 + ["B"] * 60 + ["C"] * 19 + ["D"] * 1
+    for row, label in zip(rows, labels, strict=True):
+        row["y_true"] = label
+    findings = _check(make_frame, rows)
+    assert any("minority class" in finding.message for finding in findings)
+
+
 def test_skips_without_predictions(make_frame) -> None:
     rows = _rows(60, lambda index: 0.5)
     for row in rows:

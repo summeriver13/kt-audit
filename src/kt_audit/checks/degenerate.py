@@ -97,7 +97,7 @@ def _minority_findings(
     if "y_true" not in rows.columns:
         return []
     true = cast(pd.Series, rows["y_true"]).dropna()
-    if true.nunique() != 2:
+    if true.empty or true.nunique() < 2:
         return []
     share = float(true.value_counts(normalize=True).min())
     if share >= MIN_MINORITY_SHARE:
