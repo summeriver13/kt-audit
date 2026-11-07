@@ -60,6 +60,16 @@ def test_expected_set_without_shared_keys_warns() -> None:
     assert "shares no key column" in findings[0].message
 
 
+def test_expected_set_with_fewer_key_columns_warns() -> None:
+    rows = _rows()
+    expect = pd.DataFrame({"user_id": [row["user_id"] for row in rows]})
+    findings = _check(rows, expect=expect)
+    partial = [finding for finding in findings if "comparison is partial" in finding.message]
+    assert partial[0].severity == "warn"
+    assert partial[0].count == 2
+    assert partial[0].examples[0]["missing_key_columns"] == "item_id, timestamp"
+
+
 def test_reported_row_count_mismatch_is_an_error() -> None:
     findings = _check(_rows(), AuditConfig(reported_n=1000))
     assert findings[0].severity == "error"

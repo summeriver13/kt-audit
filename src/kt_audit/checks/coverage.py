@@ -66,9 +66,9 @@ def _expect_findings(
                 (),
             )
         ]
+    findings = _partial_key_findings(df, expect)
     actual = _keys(df, columns)
     wanted = _keys(expect, columns)
-    findings: list[Finding] = []
     missing = sorted(wanted - actual)
     if missing:
         findings.append(
@@ -92,6 +92,23 @@ def _expect_findings(
             )
         )
     return findings
+
+
+def _partial_key_findings(df: pd.DataFrame, expect: pd.DataFrame) -> list[Finding]:
+    dropped = [
+        column for column in KEY_COLUMNS if column in df.columns and column not in expect.columns
+    ]
+    if not dropped:
+        return []
+    return [
+        Finding(
+            "coverage",
+            "warn",
+            "the expected set lacks key columns; the comparison is partial",
+            len(dropped),
+            ({"missing_key_columns": ", ".join(dropped)},),
+        )
+    ]
 
 
 def _label_findings(df: pd.DataFrame, config: AuditConfig) -> list[Finding]:
