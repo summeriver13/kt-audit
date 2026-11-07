@@ -16,6 +16,8 @@ All notable changes to this project are documented here. This project follows [S
 - `compare --metric {auc,acc,macro_f1,kappa}`.
 - `AuditConfig` fields `task`, `metric_floor`, `floor_warn_margin`, `coverage`, `expect_keys`,
   `expect_rows`, `reported_n`, `reported_acc`.
+- `AuditConfig.acc_tolerance` (0.01) so the reported-accuracy check no longer borrows
+  `auc_tolerance`.
 - `audit_path(..., expect=...)`; `audit_frame(..., expect=..., expect_digest=...)`; `input.expect`
   records the size and hash of the expected set.
 - Examples `multiclass.csv` and `dropped_rows.csv`; `docs/rfc-0.3.md`;
@@ -26,6 +28,10 @@ All notable changes to this project are documented here. This project follows [S
 - `cheap_baseline` skipped a fold whose training split holds a single class or whose labels
   fall outside 0/1; both crashed with `IndexError` and left no report.
 - A label outside 0/1 leaves AUC empty instead of raising from `roc_auc_score`.
+- `compare` accepted a non-finite prediction on the candidate side and then crashed with
+  `IndexError`; both sides are checked and the sample sizes must match.
+- `degenerate` applies the rare-minority rule to any number of classes, not only two.
+- `coverage` warns when the expected set lacks a key column instead of comparing a partial key.
 
 ### Changed
 - `schema_version` is `0.3`; fields were added inside `metrics[split]`.
@@ -33,6 +39,7 @@ All notable changes to this project are documented here. This project follows [S
   `auc_b`.
 - `degenerate` reports "no numeric predictions" instead of a missing column when the file carries
   labels only.
+- `--no-alignment` drops the alignment findings only; the `## Metrics` table stays.
 
 ## [0.2.0] - 2026-10-26
 
