@@ -114,6 +114,20 @@ def test_rejects_missing_labels(make_frame) -> None:
         compare_frames(make_frame(rows), make_frame(rows), rounds=50)
 
 
+def test_rejects_non_finite_prediction_in_candidate(make_frame) -> None:
+    rows = _rows(_weak)
+    rows[0]["y_pred"] = float("inf")
+    with pytest.raises(AuditError, match="prediction on every row"):
+        compare_frames(make_frame(_rows(_weak)), make_frame(rows), rounds=50)
+
+
+def test_rejects_non_finite_prediction_in_baseline(make_frame) -> None:
+    rows = _rows(_weak)
+    rows[0]["y_pred"] = float("inf")
+    with pytest.raises(AuditError, match="prediction on every row"):
+        compare_frames(make_frame(rows), make_frame(_rows(_weak)), rounds=50)
+
+
 def test_rejects_zero_rounds(make_frame) -> None:
     frame = make_frame(_rows(_weak))
     with pytest.raises(AuditError, match="rounds"):

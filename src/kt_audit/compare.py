@@ -220,7 +220,9 @@ def _filtered(
     array_b = _array(cast(pd.Series, pred_b[mask]), task)
     if truth.size == 0:
         raise AuditError("inputs have no rows with both predictions")
-    if task == "ranking" and not (np.isfinite(truth).all() and np.isfinite(array_a).all()):
+    if task == "ranking" and not (
+        np.isfinite(truth).all() and np.isfinite(array_a).all() and np.isfinite(array_b).all()
+    ):
         raise AuditError("y_pred has missing values; compare needs a prediction on every row")
     return truth, array_a, array_b
 
@@ -251,6 +253,8 @@ def _bootstrap(
     seed: int,
 ) -> np.ndarray:
     left, right = sample_pair(truth, pred_a, pred_b, task)
+    if left.size != right.size:
+        raise AuditError("inputs have a different number of scorable rows")
     rng = np.random.default_rng(seed)
     deltas = np.empty(rounds, dtype="float64")
     for index in range(rounds):
