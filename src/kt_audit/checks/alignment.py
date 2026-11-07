@@ -124,7 +124,7 @@ def _constant_findings(df: pd.DataFrame) -> list[Finding]:
     column = "y_pred" if "y_pred" in df.columns else PREDICTED_COLUMN
     findings: list[Finding] = []
     for fold, group in iter_folds(df):
-        if group[column].nunique(dropna=True) <= 1:
+        if cast(pd.Series, group[column]).nunique(dropna=True) <= 1:
             findings.append(
                 Finding(
                     "alignment",

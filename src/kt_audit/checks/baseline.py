@@ -102,7 +102,7 @@ def _fold(
         return ([_skip(fold, "the evaluation split is too small")], None)
     if cast(pd.Series, train["y_true"]).nunique() < 2:
         return ([_skip(fold, "the training split has a single class")], None)
-    if evaluation["y_true"].nunique() < 2:
+    if cast(pd.Series, evaluation["y_true"]).nunique() < 2:
         return ([_skip(fold, "the evaluation split has a single class")], None)
     features = _features(df)
     tree = DecisionTreeClassifier(max_depth=TREE_DEPTH, random_state=RANDOM_STATE)
@@ -187,7 +187,8 @@ def _model_auc(rows: pd.DataFrame, config: AuditConfig) -> float | None:
         pred = cast(pd.Series, rows["y_pred"]).astype("float64")
         mask = np.isfinite(pred.to_numpy()) & pred.between(0.0, 1.0).to_numpy()
         valid = cast(pd.DataFrame, rows.loc[mask])
-        if len(valid) >= MIN_EVALUATION_ROWS and valid["y_true"].nunique() == 2:
+        rows_binary = cast(pd.Series, valid["y_true"]).nunique() == 2
+        if len(valid) >= MIN_EVALUATION_ROWS and rows_binary:
             scores = roc_auc_score(valid["y_true"].astype(int), valid["y_pred"].astype("float64"))
             return float(scores)
     return config.reported_auc
