@@ -38,7 +38,9 @@ def _add_run(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     run.add_argument("--config", type=Path, default=None, help="JSON config")
     run.add_argument("--no-temporal", action="store_true", help="skip temporal split check")
     run.add_argument("--no-multikc", action="store_true", help="skip multi-KC check")
-    run.add_argument("--no-alignment", action="store_true", help="skip prediction alignment check")
+    run.add_argument(
+        "--no-alignment", action="store_true", help="skip prediction alignment findings"
+    )
     run.add_argument("--no-baseline", action="store_true", help="skip cheap baseline check")
     run.add_argument(
         "--no-degenerate", action="store_true", help="skip degenerate prediction check"

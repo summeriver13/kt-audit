@@ -43,9 +43,8 @@ def audit_frame(
         findings.extend(check_multikc(prepared, config))
     if config.degenerate:
         findings.extend(check_degenerate(prepared, config))
-    metrics: dict[str, dict[str, object]] = {}
+    alignment_findings, metrics = check_alignment(prepared, config)
     if config.alignment:
-        alignment_findings, metrics = check_alignment(prepared, config)
         findings.extend(alignment_findings)
     baselines: dict[str, dict[str, object]] = {}
     if config.cheap_baseline:

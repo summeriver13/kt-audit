@@ -58,7 +58,7 @@ def test_audit_config_can_disable_all_checks(make_frame, clean_rows) -> None:
     )
     assert report.verdict == "pass"
     assert report.findings == ()
-    assert report.metrics == {}
+    assert report.metrics["test"]["acc"] == 1.0
 
 
 def test_audit_summary_without_items(make_frame, clean_rows) -> None:

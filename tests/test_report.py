@@ -39,10 +39,23 @@ def test_write_json(tmp_path: Path, make_frame, clean_rows) -> None:
 
 
 def test_report_markdown_without_metrics(make_frame, clean_rows) -> None:
+    df = make_frame(clean_rows).drop(columns=["y_pred"])
     report = audit_frame(
-        make_frame(clean_rows),
-        AuditConfig(alignment=False, cheap_baseline=False, degenerate=False),
+        df,
+        AuditConfig(
+            alignment=False,
+            cheap_baseline=False,
+            degenerate=False,
+            metric_floor=False,
+            coverage=False,
+        ),
     )
     markdown = report_to_markdown(report)
     assert "## Metrics" not in markdown
     assert "No findings" in markdown
+
+
+def test_metrics_survive_disabled_alignment(make_frame, clean_rows) -> None:
+    report = audit_frame(make_frame(clean_rows), AuditConfig(alignment=False))
+    assert report.metrics["test"]["acc"] == 1.0
+    assert "## Metrics" in report_to_markdown(report)
