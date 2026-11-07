@@ -100,6 +100,22 @@ def test_load_config_accepts_string(tmp_path: Path) -> None:
     assert kt_audit.load_config(str(path)) == AuditConfig()
 
 
+def test_checks_package_exports_every_check() -> None:
+    from kt_audit import checks
+
+    exported = set(checks.__all__)
+    assert exported == {name for name in dir(checks) if name.startswith("check_")}
+    assert exported == {
+        "check_alignment",
+        "check_cheap_baseline",
+        "check_coverage",
+        "check_degenerate",
+        "check_metric_floor",
+        "check_multikc",
+        "check_temporal",
+    }
+
+
 def test_report_json_keys(clean_rows) -> None:
     payload = report_to_dict(audit_frame(pd.DataFrame(clean_rows)))
     assert set(payload) == {

@@ -8,13 +8,15 @@ from typing import cast
 import pandas as pd
 
 from ._version import __version__
-from .checks.alignment import check_alignment
-from .checks.baseline import check_cheap_baseline
-from .checks.coverage import check_coverage
-from .checks.degenerate import check_degenerate
-from .checks.floor import check_metric_floor
-from .checks.multikc import check_multikc
-from .checks.temporal import check_temporal
+from .checks import (
+    check_alignment,
+    check_cheap_baseline,
+    check_coverage,
+    check_degenerate,
+    check_metric_floor,
+    check_multikc,
+    check_temporal,
+)
 from .config import AuditConfig
 from .errors import AuditError
 from .schema import Finding, Report, Verdict, prepare_frame
